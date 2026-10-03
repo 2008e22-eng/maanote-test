@@ -155,7 +155,7 @@
     todoFilter:'open',
     todoSelection:false,
     selectedTodoIds:new Set(),
-    settings:{ mode:'personal_management', homeEventFilter:'all', headerImage:null, previewDate:null, imageQuality:'standard', fontSize:'standard', rememberEventFilter:true, lastEventFilter:'all' },
+    settings:{ mode:'personal_management', homeEventFilter:'all', headerImage:null, previewDate:null, imageQuality:'standard', fontSize:'xlarge', rememberEventFilter:true, lastEventFilter:'all' },
     settingsReturnScreen:'home',
     db:null
   };
@@ -281,7 +281,7 @@
     }
     const settings=await idbGetAll('settings');
     for(const row of settings) state.settings[row.key]=row.value;
-    applyFontSize(state.settings.fontSize||'standard');
+    applyFontSize(state.settings.fontSize||'xlarge');
     if(state.settings.rememberEventFilter && state.settings.lastEventFilter) state.eventFilter=state.settings.lastEventFilter;
 
     let todos=await idbGetAll('todos');
@@ -322,7 +322,7 @@
 
   function applyFontSize(size){
     const allowed=['small','standard','large','xlarge'];
-    const value=allowed.includes(size)?size:'standard';
+    const value=allowed.includes(size)?size:'xlarge';
     document.documentElement.dataset.fontSize=value;
   }
 
@@ -899,7 +899,7 @@
   function monthEntries(year,month){
     const prefix=`${year}-${String(month).padStart(2,'0')}-`;
     const rows=[];
-    officialEvents.filter(e=>e.date.startsWith(prefix)).forEach(e=>rows.push({kind:'event',date:e.date,time:e.parts?.[0]?.startTime||e.salesStart||null,title:`${e.prefecture} ${e.venue}`,eventId:e.id,icon:'🎤'}));
+    officialEvents.filter(e=>e.date.startsWith(prefix)).forEach(e=>rows.push({kind:'event',date:e.date,time:e.parts?.[0]?.startTime||e.salesStart||null,title:eventCalendarLabel(e),eventId:e.id,icon:'🎤'}));
     if(state.settings.mode!=='view_only'){
       state.personalSchedules.filter(x=>!x.deleted && x.date?.startsWith(prefix)).forEach(x=>rows.push({kind:'schedule',date:x.date,time:x.time,title:x.title,id:x.id,eventId:x.eventId,icon:'📝'}));
       state.todos.filter(t=>!t.deleted && !t.completed && t.showOnCalendar && t.dueDate?.startsWith(prefix)).forEach(t=>rows.push({kind:'todo',date:t.dueDate,time:t.dueTime,title:t.title,id:t.id,eventId:t.eventId,icon:'☑'}));
@@ -909,18 +909,128 @@
         if(x.freeCancelUntil?.startsWith(prefix)) rows.push({kind:'travel',date:x.freeCancelUntil,time:null,title:`キャンセル期限：${travelDisplayTitle(x)}`,id:x.id,eventId:x.eventId,icon:'⏰'});
       });
     }
-    return rows.sort((a,b)=>a.date.localeCompare(b.date)||(a.time||'99:99').localeCompare(b.time||'99:99'));
+    const kindOrder={event:0,travel:1,schedule:2,todo:3};
+    return rows.sort((a,b)=>a.date.localeCompare(b.date)||(kindOrder[a.kind]??9)-(kindOrder[b.kind]??9)||(a.time||'99:99').localeCompare(b.time||'99:99')||String(a.title||'').localeCompare(String(b.title||''),'ja'));
+  }
+
+  function nthWeekdayOfMonth(year,month,weekday,nth){
+    const first=new Date(year,month-1,1).getDay();
+    const offset=(7+weekday-first)%7;
+    return 1+offset+(nth-1)*7;
+  }
+
+  function vernalEquinoxDay(year){
+    return Math.floor(20.8431 + 0.242194 * (year - 1980)) - Math.floor((year - 1980) / 4);
+  }
+
+  function autumnEquinoxDay(year){
+    return Math.floor(23.2488 + 0.242194 * (year - 1980)) - Math.floor((year - 1980) / 4);
+  }
+
+  function baseJapaneseHolidayName(year,month,day){
+    if(month===1){
+      if(day===1) return '元日';
+      if(day===nthWeekdayOfMonth(year,1,1,2)) return '成人の日';
+    }
+    if(month===2){
+      if(day===11) return '建国記念の日';
+      if(year>=2020 && day===23) return '天皇誕生日';
+    }
+    if(month===3 && day===vernalEquinoxDay(year)) return '春分の日';
+    if(month===4 && day===29) return '昭和の日';
+    if(month===5){
+      if(day===3) return '憲法記念日';
+      if(day===4) return 'みどりの日';
+      if(day===5) return 'こどもの日';
+    }
+    if(month===7 && day===nthWeekdayOfMonth(year,7,1,3)) return '海の日';
+    if(month===8 && year>=2016 && day===11) return '山の日';
+    if(month===9){
+      if(day===nthWeekdayOfMonth(year,9,1,3)) return '敬老の日';
+      if(day===autumnEquinoxDay(year)) return '秋分の日';
+    }
+    if(month===10 && day===nthWeekdayOfMonth(year,10,1,2)) return 'スポーツの日';
+    if(month===11){
+      if(day===3) return '文化の日';
+      if(day===23) return '勤労感謝の日';
+    }
+    return null;
+  }
+
+  const japaneseHolidayCache=new Map();
+  function getMonthHolidayMap(year,month){
+    const key=`${year}-${month}`;
+    if(japaneseHolidayCache.has(key)) return japaneseHolidayCache.get(key);
+    const lastDay=new Date(year,month,0).getDate();
+    const map=new Map();
+    const toISO=(n)=>`${year}-${String(month).padStart(2,'0')}-${String(n).padStart(2,'0')}`;
+    const addDays=(dateStr,offset)=>{ const dt=new Date(dateStr+'T00:00:00'); dt.setDate(dt.getDate()+offset); return fmtISODate(dt); };
+    for(let day=1; day<=lastDay; day++){
+      const name=baseJapaneseHolidayName(year,month,day);
+      if(name) map.set(toISO(day),name);
+    }
+    const baseHolidayDates=[...map.keys()];
+    baseHolidayDates.forEach(ds=>{
+      if(new Date(ds+'T00:00:00').getDay()!==0) return;
+      let probe=addDays(ds,1);
+      while(map.has(probe)) probe=addDays(probe,1);
+      if(probe.startsWith(`${year}-${String(month).padStart(2,'0')}-`)) map.set(probe,'振替休日');
+    });
+    for(let day=2; day<lastDay; day++){
+      const ds=toISO(day);
+      if(map.has(ds)) continue;
+      const dow=new Date(ds+'T00:00:00').getDay();
+      if(dow===0) continue;
+      if(map.has(addDays(ds,-1)) && map.has(addDays(ds,1))) map.set(ds,'国民の休日');
+    }
+    japaneseHolidayCache.set(key,map);
+    return map;
+  }
+
+  function getJapaneseHolidayName(dateStr){
+    const [year,month]=dateStr.split('-').map(Number);
+    return getMonthHolidayMap(year,month).get(dateStr)||null;
+  }
+
+  function eventCalendarLabel(ev){
+    const station=ev?.nearestStations?.[0]?.name ? ev.nearestStations[0].name.replace(/駅.*$/,'') : '';
+    if(station) return station;
+    let venue=String(ev?.venue||'').trim();
+    const special=[
+      [/^サッポロファクトリー$/,'札幌'],
+      [/^キャナルシティ博多$/,'博多'],
+      [/^金沢フォーラス$/,'金沢'],
+      [/^エアポートウォーク名古屋$/,'名古屋'],
+      [/^神戸ハーバーランド.*$/,'神戸'],
+      [/^イオンモール幕張新都心$/,'幕張'],
+      [/^イオンモール広島府中$/,'広島'],
+      [/^池袋・サンシャインシティ.*$/,'池袋'],
+      [/^タワーレコード錦糸町パルコ店$/,'錦糸町']
+    ];
+    for(const [pattern,label] of special){ if(pattern.test(venue)) return label; }
+    venue=venue.replace(/イオンモール|タワーレコード|エアポートウォーク|キャナルシティ|サンシャインシティ|ハーバーランド|スペースシアター|噴水広場|パルコ店|フォーラス|店内イベントスペース|店/g,'').replace(/[・\s]+/g,' ').trim();
+    if(venue) return shorten(venue,6);
+    return ev?.prefecture||'イベント';
   }
 
   function renderMonthGrid(year,month){
     const first=new Date(year,month-1,1); const last=new Date(year,month,0); const start=first.getDay(); const days=last.getDate();
     const entries=monthEntries(year,month); const cells=[];
+    const holidayMap=getMonthHolidayMap(year,month);
     for(let i=0;i<start;i++) cells.push('<div class="calendar-day outside"></div>');
     const today=fmtISODate(currentDate());
     for(let d=1;d<=days;d++){
       const ds=`${year}-${String(month).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
-      const dayEntries=entries.filter(x=>x.date===ds); const dow=new Date(year,month-1,d).getDay();
-      cells.push(`<button class="calendar-day ${ds===today?'today':''}" data-day="${ds}"><span class="day-num ${dow===0?'sun':dow===6?'sat':''}">${d}</span><div class="day-items">${dayEntries.slice(0,3).map(x=>`<span class="day-pill ${x.kind}">${x.icon} ${escapeHTML(shorten(x.title,10))}</span>`).join('')}${dayEntries.length>3?`<span class="day-more">＋${dayEntries.length-3}</span>`:''}</div></button>`);
+      const dayEntries=entries.filter(x=>x.date===ds); const dow=new Date(year,month-1,d).getDay(); const holidayName=holidayMap.get(ds);
+      const dayClass=`calendar-day ${ds===today?'today ':''}${holidayName?'holiday ':''}`.trim();
+      const numClass=`day-num ${holidayName?'holiday':(dow===0?'sun':dow===6?'sat':'')}`.trim();
+      const pills=dayEntries.slice(0,3).map(x=>{
+        const body=x.kind==='event'?escapeHTML(shorten(x.title,6)):`${x.icon} ${escapeHTML(shorten(x.title,8))}`;
+        return `<span class="day-pill ${x.kind}">${body}</span>`;
+      }).join('');
+      const more=dayEntries.length>3?`<span class="day-more">＋${dayEntries.length-3}</span>`:'';
+      const aria=`${year}年${month}月${d}日${holidayName?` ${holidayName}`:''}`;
+      cells.push(`<button class="${dayClass}" data-day="${ds}" aria-label="${escapeAttr(aria)}"><span class="${numClass}">${d}</span><div class="day-items">${pills}${more}</div></button>`);
     }
     while(cells.length%7) cells.push('<div class="calendar-day outside"></div>');
     return `<div class="calendar-card card"><div class="week-head"><span class="sun">日</span><span>月</span><span>火</span><span>水</span><span>木</span><span>金</span><span class="sat">土</span></div><div class="calendar-grid">${cells.join('')}</div></div>`;
@@ -1634,7 +1744,7 @@
 
         <div class="settings-section-title">表示</div>
         <section class="card settings-card">
-          <label class="settings-field"><span><strong>文字サイズ</strong><small>この端末だけに保存されます</small></span><select class="settings-select" data-setting-font-size><option value="small" ${state.settings.fontSize==='small'?'selected':''}>小さめ 90%</option><option value="standard" ${!state.settings.fontSize||state.settings.fontSize==='standard'?'selected':''}>標準 100%</option><option value="large" ${state.settings.fontSize==='large'?'selected':''}>大きめ 120%</option><option value="xlarge" ${state.settings.fontSize==='xlarge'?'selected':''}>特大 140%</option></select></label>
+          <label class="settings-field"><span><strong>文字サイズ</strong><small>この端末だけに保存されます</small></span><select class="settings-select" data-setting-font-size><option value="small" ${state.settings.fontSize==='small'?'selected':''}>小さめ 90%</option><option value="standard" ${state.settings.fontSize==='standard'?'selected':''}>標準 100%</option><option value="large" ${state.settings.fontSize==='large'?'selected':''}>大きめ 120%</option><option value="xlarge" ${!state.settings.fontSize||state.settings.fontSize==='xlarge'?'selected':''}>特大 140%（初期値）</option></select></label>
           <div class="font-size-preview"><small>表示例</small><strong>11/2(月) 千葉　イオンモール幕張新都心</strong></div>
         </section>
 
