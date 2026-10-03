@@ -546,8 +546,6 @@
           </div>
         </header>
         <div class="content home-content">
-          <span class="test-ribbon">TEST BUILD · v0.9 Stage 7 · OFFLINE</span>
-          <div class="test-note">画面確認用のテストデータを含みます。未発表項目は推測せず「未発表」と表示しています。初回オンライン読込後は、主要画面と端末保存データをオフラインでも利用できます。</div>
           ${homeEventCard(ev,plan,mode,next,parts)}
           ${state.settings.mode!=='view_only'?homePersonalSection(ev,mode):''}
           ${renderCommonNotice()}
@@ -583,13 +581,13 @@
       <button class="map-row" data-map="${escapeAttr(ev.venue+' '+stationText(ev))}">${icon('pin')}<span>${stationText(ev)}</span><span class="chev">›</span></button>
       ${next && (mode==='today'||mode==='tomorrow')?`<div class="next-panel"><div class="next-label">NEXT</div><div class="next-line"><span class="next-time">${next.time}</span><span class="next-title">${next.title}</span></div></div>`:''}
       <div class="info-strip"><span>販売 <strong>${ev.salesStart||'未発表'}</strong></span><span>送料 <strong>${shippingText(ev.shipping)}</strong></span><span>上限 <strong>${ev.purchaseLimit?.count?ev.purchaseLimit.count+'枚':'未発表'}</strong></span></div>
-      ${management && confirmed && (mode==='today'||mode==='tomorrow') ? userCompact(plan,parts) : parts.length?`<div class="small muted" style="margin-top:7px">${parts.map(p=>`${p.label} ${p.startTime}`).join(' ｜ ')}</div>`:`<div class="small muted" style="margin-top:7px">各部詳細：未発表</div>`}
+      ${management && confirmed && parts.length ? userCompact(plan,parts) : parts.length?`<div class="small muted part-summary">${parts.map(p=>`${p.label} ${p.startTime}`).join(' ｜ ')}</div>`:`<div class="small muted part-summary">各部詳細：未発表</div>`}
       ${management?`<div class="home-shortcuts"><button class="shortcut-btn" data-open-setlist="${ev.id}">${icon('list')} セトリ${setlistFilledCount(ev.id)?` ${setlistFilledCount(ev.id)}部`:''}</button><button class="shortcut-btn" data-home-travel="${ev.id}">${icon('luggage')} 旅程</button></div>`:''}
     </section>`;
   }
 
   function userCompact(plan,parts){
-    return `<div style="margin-top:8px;font-size:12px;font-weight:800">CD購入　<span style="color:var(--accent-dark);font-size:15px">${plan.cdQuantity??0}枚</span></div>
+    return `<div class="home-cd-line"><span>CD購入</span><strong>${plan.cdQuantity??0}枚</strong></div>
       <div class="compact-table">
         <div class="tr"><div class="td">部</div><div class="td">開催</div><div class="td">集合</div><div class="td">トーク券</div><div class="td">優先</div></div>
         ${parts.map(p=>{const u=plan.parts?.[p.id]||{}; return `<div class="tr"><div class="td">${p.label}</div><div class="td">${p.startTime||'—'}</div><div class="td">${p.priorityMeetTime||'—'}</div><div class="td">${u.talkTicketQuantity??'—'}枚</div><div class="td">${u.priorityNumber??'—'}</div></div>`}).join('')}

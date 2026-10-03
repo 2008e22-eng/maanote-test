@@ -508,3 +508,59 @@ svg { display: block; }
 .common-status.cancelled { background:#FFF0F0; color:#A84444; }
 .common-status.ended { background:#F0F2F2; color:#6B7472; }
 \n/* 2026-10-03: compact iPhone typography matching the approved home reference */\nbody { font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Hiragino Sans", "Yu Gothic UI", sans-serif; font-size: 13px; }\n.home-hero { min-height: 118px; }\n.home-hero-inner { min-height:118px; padding: max(10px, env(safe-area-inset-top)) 12px 12px; }\n.brand { font-size: 23px; line-height:1.04; font-weight: 800; letter-spacing:-.035em; }\n.brand-sub { margin-top:4px; font-size: 11px; font-weight:650; }\n.icon-btn { width:34px; height:34px; }\n.icon-btn svg { width:18px; height:18px; }\n.content { padding: 9px 10px 20px; }\n.home-content { margin-top:-10px; }\n.test-ribbon { font-size:9px; padding:3px 6px; }\n.test-note { margin:6px 0 8px; padding:7px 8px; font-size:10px; line-height:1.45; }\n.section-card { padding:10px; margin-bottom:8px; }\n.section-title { font-size:12px; font-weight:800; }\n.section-kicker { font-size:10px; }\n.event-hero-card { padding:10px; }\n.event-kicker { font-size:10px; font-weight:850; }\n.event-date { margin-top:1px; font-size:14px; font-weight:800; }\n.status-badge { padding:4px 7px; font-size:9px; font-weight:750; }\n.venue-name { margin-top:5px; font-size:13px; line-height:1.32; font-weight:750; }\n.map-row { margin-top:3px; font-size:10.5px; }\n.map-row svg { width:13px; height:13px; }\n.next-panel { margin-top:8px; padding:7px 8px; }\n.next-label { font-size:9px; }\n.next-time { font-size:18px; font-weight:850; }\n.next-title { font-size:12px; font-weight:800; }\n.info-strip { margin-top:6px; padding:5px 7px; gap:5px 7px; font-size:9.5px; }\n.compact-table { margin-top:6px; font-size:10px; }\n.compact-table .tr { min-height:26px; }\n.compact-table .tr:first-child { font-size:8.5px; }\n.compact-table .td { padding:4px 3px; }\n.home-shortcuts { gap:7px; margin-top:7px; }\n.shortcut-btn { min-height:38px; font-size:11px; font-weight:750; }\n.shortcut-btn svg { width:15px; height:15px; }\n.todo-home-row { grid-template-columns:26px minmax(0,1fr) 12px; }\n.todo-check { width:22px; height:22px; }\n.todo-title { font-size:11px; font-weight:750; }\n.todo-meta { font-size:8.5px; }\n.tabbar-inner { height:58px; }\n.app-shell { padding-bottom: calc(67px + env(safe-area-inset-bottom)); }\n.tab-btn { gap:2px; font-size:8.5px; font-weight:650; }\n.tab-btn svg { width:20px; height:20px; }\n.event-card-date { font-size:13px; }\n.event-card-venue { font-size:12px; font-weight:750; }\n.event-card-map, .event-card-info, .part-lines, .event-card-foot { font-size:9.5px; }\n.detail-venue { font-size:16px; }\n.info-value { font-size:11px; }\n
+
+/* 2026-10-03: approved compact home layout — align to reference image */
+body { font-size: 12px; background:#F7FAF9; }
+.home-hero { min-height: 68px; border-bottom:1px solid rgba(255,255,255,.2); }
+.home-hero-inner { min-height:68px; padding: max(7px, env(safe-area-inset-top)) 10px 7px; justify-content:center; }
+.brand { font-size:18px; line-height:1; font-weight:800; letter-spacing:-.03em; }
+.brand-sub { margin-top:3px; font-size:9.5px; font-weight:650; }
+.icon-btn { width:30px; height:30px; border-width:1px; }
+.icon-btn svg { width:16px; height:16px; }
+.hero-actions { gap:6px; }
+.content { padding:7px 8px 14px; }
+.home-content { margin-top:0; }
+.card { border-radius:10px; box-shadow:0 1px 4px rgba(30,80,72,.04); }
+.event-hero-card { padding:8px 9px; margin-bottom:6px; }
+.event-head { align-items:center; gap:6px; }
+.event-head-main { display:flex; align-items:baseline; gap:6px; min-width:0; }
+.event-kicker { font-size:9.5px; letter-spacing:.035em; line-height:1; }
+.event-date { margin-top:0; font-size:11.5px; line-height:1.2; font-weight:800; white-space:nowrap; }
+.status-badge { padding:3px 6px; font-size:8.5px; max-width:150px; }
+.venue-name { margin-top:4px; font-size:10.5px; line-height:1.3; font-weight:700; }
+.map-row { margin-top:2px; font-size:9.5px; line-height:1.25; }
+.map-row svg { width:11px; height:11px; }
+.next-panel { margin:6px 0 0; padding:0; border:0; border-radius:0; background:transparent; }
+.next-label { font-size:9px; line-height:1; }
+.next-line { margin-top:2px; gap:6px; }
+.next-time { font-size:15px; line-height:1; }
+.next-title { font-size:10.5px; line-height:1.2; }
+.info-strip { margin-top:5px; padding:4px 6px; gap:4px 10px; border-radius:6px; font-size:8.5px; background:#EEF7F4; }
+.part-summary { margin-top:5px !important; font-size:9px !important; }
+.home-cd-line { margin-top:6px; display:inline-flex; align-items:baseline; gap:7px; padding:3px 6px; border-radius:6px; background:#F4FAF8; font-size:9px; color:#4C5A58; }
+.home-cd-line strong { color:var(--accent-dark); font-size:12.5px; font-weight:850; }
+.compact-table { margin-top:5px; border-radius:6px; font-size:9px; }
+.compact-table .tr { min-height:21px; grid-template-columns:.68fr .95fr .95fr 1.05fr .78fr; }
+.compact-table .tr:first-child { font-size:7.5px; }
+.compact-table .td { padding:3px 2px; }
+.home-shortcuts { gap:6px; margin-top:6px; }
+.shortcut-btn { min-height:34px; border-radius:7px; font-size:9.5px; font-weight:750; }
+.shortcut-btn svg { width:13px; height:13px; }
+.section-card { padding:8px 9px; margin-bottom:6px; }
+.section-title-row { margin-bottom:5px; }
+.section-title { font-size:10.5px; font-weight:800; }
+.mini-link { font-size:8.5px !important; }
+.home-row-btn { min-height:30px; grid-template-columns:40px minmax(0,1fr) 10px; padding:4px 0; font-size:9px; }
+.home-row-time { font-size:9px; }
+.home-row-main span { font-size:9.5px; font-weight:700; }
+.home-row-main small { font-size:7.5px; }
+.todo-home-row { grid-template-columns:23px minmax(0,1fr) 10px; }
+.todo-check { width:19px; height:19px; font-size:9px; }
+.home-subtitle { margin-top:5px; padding-top:5px; font-size:8.5px; }
+.home-empty-add { padding:6px; font-size:8.5px; border-radius:6px; }
+.tabbar-inner { height:52px; }
+.app-shell { padding-bottom: calc(59px + env(safe-area-inset-bottom)); }
+.tab-btn { gap:1px; font-size:7.5px; font-weight:650; }
+.tab-btn svg { width:18px; height:18px; }
+.common-notice { margin-top:0; }
+/* TEST notices remain available outside the home UI; home intentionally mirrors approved compact reference. */
