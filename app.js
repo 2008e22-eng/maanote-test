@@ -2,7 +2,7 @@
   'use strict';
 
   const ACCENT = '#47B0A0';
-  const OFFICIAL_URL = 'https://up-front-works.jp/event/006feb74b8da455d4d8e8d30b5f54904965d113acebc5cffe84c79f8d2b7cc76/';
+  const OFFICIAL_URL = 'https://www.jp-r.co.jp/masaki_satou/event/006feb74b8da455d4d8e8d30b5f54904965d113acebc5cffe84c79f8d2b7cc76/';
 
   // TEST BUILD: current announced event dates/venues are used as UI data.
   // Items marked null/未発表 are intentionally not inferred.
@@ -12,14 +12,14 @@
       venue:'イオンモール幕張新都心', venueDetail:null,
       nearestStations:[{name:'幕張豊砂駅', walkMinutes:null}],
       salesStart:null, shipping:{type:'unpublished', amount:null}, purchaseLimit:null,
-      parts:[], officialUrl:OFFICIAL_URL, status:'public', version:1, updatedAt:'2026-09-24T12:00:00+09:00'
+      parts:[], officialUrl:OFFICIAL_URL, status:'public', version:2, updatedAt:'2026-10-02T20:00:00+09:00'
     },
     {
       id:'release-20261108-ishikawa', category:'release_event', date:'2026-11-08', prefecture:'石川',
       venue:'金沢フォーラス', venueDetail:null,
       nearestStations:[{name:'金沢駅', walkMinutes:null}],
       salesStart:null, shipping:{type:'unpublished', amount:null}, purchaseLimit:null,
-      parts:[], officialUrl:OFFICIAL_URL, status:'public', version:1, updatedAt:'2026-09-24T12:00:00+09:00'
+      parts:[], officialUrl:OFFICIAL_URL, status:'public', version:2, updatedAt:'2026-10-02T20:00:00+09:00'
     },
     {
       id:'release-20261115-tokyo', category:'release_event', date:'2026-11-15', prefecture:'東京',
@@ -30,43 +30,43 @@
         {id:'p1', label:'1部', startTime:'14:00', priorityMeetTime:'13:40'},
         {id:'p2', label:'2部', startTime:'17:00', priorityMeetTime:'16:40'}
       ],
-      officialUrl:OFFICIAL_URL, status:'public', version:1, updatedAt:'2026-09-24T12:00:00+09:00', sampleDetail:true
+      officialUrl:OFFICIAL_URL, status:'public', version:2, updatedAt:'2026-10-02T20:00:00+09:00'
     },
     {
       id:'release-20261121-hokkaido', category:'release_event', date:'2026-11-21', prefecture:'北海道',
       venue:'サッポロファクトリー', venueDetail:null,
       nearestStations:[], salesStart:null, shipping:{type:'unpublished', amount:null}, purchaseLimit:null,
-      parts:[], officialUrl:OFFICIAL_URL, status:'public', version:1, updatedAt:'2026-09-24T12:00:00+09:00'
+      parts:[], officialUrl:OFFICIAL_URL, status:'public', version:2, updatedAt:'2026-10-02T20:00:00+09:00'
     },
     {
       id:'release-20261123-aichi', category:'release_event', date:'2026-11-23', prefecture:'愛知',
       venue:'エアポートウォーク名古屋', venueDetail:null,
       nearestStations:[], salesStart:null, shipping:{type:'unpublished', amount:null}, purchaseLimit:null,
-      parts:[], officialUrl:OFFICIAL_URL, status:'public', version:1, updatedAt:'2026-09-24T12:00:00+09:00'
+      parts:[], officialUrl:OFFICIAL_URL, status:'public', version:2, updatedAt:'2026-10-02T20:00:00+09:00'
     },
     {
       id:'release-20261128-hiroshima', category:'release_event', date:'2026-11-28', prefecture:'広島',
       venue:'イオンモール広島府中', venueDetail:null,
       nearestStations:[], salesStart:null, shipping:{type:'unpublished', amount:null}, purchaseLimit:null,
-      parts:[], officialUrl:OFFICIAL_URL, status:'public', version:1, updatedAt:'2026-09-24T12:00:00+09:00'
+      parts:[], officialUrl:OFFICIAL_URL, status:'public', version:2, updatedAt:'2026-10-02T20:00:00+09:00'
     },
     {
       id:'release-20261206-fukuoka', category:'release_event', date:'2026-12-06', prefecture:'福岡',
       venue:'キャナルシティ博多', venueDetail:null,
       nearestStations:[], salesStart:null, shipping:{type:'unpublished', amount:null}, purchaseLimit:null,
-      parts:[], officialUrl:OFFICIAL_URL, status:'public', version:1, updatedAt:'2026-09-24T12:00:00+09:00'
+      parts:[], officialUrl:OFFICIAL_URL, status:'public', version:2, updatedAt:'2026-10-02T20:00:00+09:00'
     },
     {
       id:'release-20261215-tokyo', category:'release_event', date:'2026-12-15', prefecture:'東京',
       venue:'池袋・サンシャインシティ 噴水広場', venueDetail:null,
       nearestStations:[{name:'池袋駅', walkMinutes:null}], salesStart:null, shipping:{type:'unpublished', amount:null}, purchaseLimit:null,
-      parts:[], officialUrl:OFFICIAL_URL, status:'public', version:1, updatedAt:'2026-09-24T12:00:00+09:00'
+      parts:[], officialUrl:OFFICIAL_URL, status:'public', version:2, updatedAt:'2026-10-02T20:00:00+09:00'
     },
     {
       id:'release-20261219-hyogo', category:'release_event', date:'2026-12-19', prefecture:'兵庫',
       venue:'神戸ハーバーランド スペースシアター', venueDetail:null,
       nearestStations:[], salesStart:null, shipping:{type:'unpublished', amount:null}, purchaseLimit:null,
-      parts:[], officialUrl:OFFICIAL_URL, status:'public', version:1, updatedAt:'2026-09-24T12:00:00+09:00'
+      parts:[], officialUrl:OFFICIAL_URL, status:'public', version:2, updatedAt:'2026-10-02T20:00:00+09:00'
     }
   ];
   let officialEvents = [];
@@ -75,7 +75,7 @@
     {
       id:'other-test-release-note', category:'release', date:'2026-09-24', time:null,
       title:'3rdシングル発売記念イベント一覧が公開されました', place:null, note:'管理者配信の画面確認用サンプルです。',
-      officialUrl:OFFICIAL_URL, status:'public', version:1, updatedAt:'2026-09-24T12:00:00+09:00', sample:true
+      officialUrl:OFFICIAL_URL, status:'public', version:2, updatedAt:'2026-10-02T20:00:00+09:00', sample:true
     }
   ];
 
@@ -233,6 +233,16 @@
     if(!events.length){
       for(const row of seededOfficialEvents) await idbPut('commonEvents',structuredClone(row));
       events=structuredClone(seededOfficialEvents);
+    }else{
+      const byId=new Map(events.map(x=>[x.id,x]));
+      for(const seed of seededOfficialEvents){
+        const current=byId.get(seed.id);
+        if(!current || Number(current.version||0) < Number(seed.version||0)){
+          await idbPut('commonEvents',structuredClone(seed));
+          byId.set(seed.id,structuredClone(seed));
+        }
+      }
+      events=[...byId.values()];
     }
     officialEvents=events.filter(x=>x.status!=='hidden').sort((a,b)=>String(a.date||'9999').localeCompare(String(b.date||'9999')));
 
@@ -246,10 +256,15 @@
     const metaRows=await idbGetAll('commonMeta');
     const publish=metaRows.find(x=>x.key==='publish');
     if(!publish){
-      state.commonMeta={version:1,updatedAt:'2026-09-24T12:00:00+09:00',summary:'3rdシングル発売記念イベント一覧が公開されました'};
+      state.commonMeta={version:1,updatedAt:'2026-10-02T20:00:00+09:00',summary:'3rdシングル発売記念イベント一覧が公開されました'};
       await idbPut('commonMeta',{key:'publish',...state.commonMeta});
     }else{
-      state.commonMeta={version:Number(publish.version||0),updatedAt:publish.updatedAt||null,summary:publish.summary||null};
+      if(Number(publish.version||0) < 2){
+        state.commonMeta={version:2,updatedAt:'2026-10-02T20:00:00+09:00',summary:'3rdシングル発売記念イベント情報を10/2公式更新内容に合わせました'};
+        await idbPut('commonMeta',{key:'publish',...state.commonMeta});
+      }else{
+        state.commonMeta={version:Number(publish.version||0),updatedAt:publish.updatedAt||null,summary:publish.summary||null};
+      }
     }
     state.commonHistory=await idbGetAll('commonHistory');
   }

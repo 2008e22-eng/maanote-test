@@ -23,3 +23,9 @@
 ## iPhoneで「端末保存の初期化に失敗しました」と出た場合
 この修正版は、同じGitHub Pages URLでRC2など新しい版を先に開いた端末でも、既存のIndexedDBをそのまま開けるように修正済みです。
 リポジトリへ上書きしてCommit/Push後、Safariでページを再読み込みしてください。必要ならSafariを完全終了して開き直してください。
+
+
+## 2026-10-03 compact2
+- Home typography compacted to match the approved iPhone reference.
+- Official 3rd single event data marked updated 2026-10-02.
+- 11/15 Kinshicho details use the published venue/event information (14:00/17:00, sales 11:00, limit 4, shipping 950, priority assembly 20 min before).
