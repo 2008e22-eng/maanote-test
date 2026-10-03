@@ -1,9 +1,9 @@
-const CACHE = 'maanote-v0.9-stage8-layoutfix2-20261003';
+const CACHE = 'maanote-v0.9-stage8-font140-default-20261003';
 const APP_SHELL = [
   './',
   './index.html',
-  './styles.css?v=0.9-stage8-layoutfix2',
-  './app.js?v=0.9-stage8-layoutfix2',
+  './styles.css?v=0.9-stage8-font140-default',
+  './app.js?v=0.9-stage8-font140-default',
   './manifest.webmanifest',
   './icon.svg',
   './icon-192.png',
@@ -11,8 +11,8 @@ const APP_SHELL = [
   './apple-touch-icon.png',
   './version.json',
   './admin.html',
-  './admin.css?v=0.9-stage8-layoutfix2',
-  './admin.js?v=0.9-stage8-layoutfix2',
+  './admin.css?v=0.9-stage8-font140-default',
+  './admin.js?v=0.9-stage8-font140-default',
   './common-seed.json',
   './migrate-v96.html',
   './migrate-v96.css?v=0.9-stage8-layoutfix2',
