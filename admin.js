@@ -1,8 +1,8 @@
 (() => {
   'use strict';
-  const DB='MaaNoteDB', DB_VERSION=7;
+  const DB='MaaNoteDB', DB_VERSION=7, APP_VERSION='0.9-stage9-rc1.1', EMERGENCY_COMMON_KEY='MaaNoteEmergencyCommonV1';
   const app=document.getElementById('adminApp'), sheet=document.getElementById('adminSheet'), toast=document.getElementById('adminToast');
-  const state={db:null,tab:'release',events:[],other:[],history:[],drafts:[],meta:{version:0},draftTimer:null};
+  const state={db:null,tab:'release',events:[],other:[],history:[],drafts:[],meta:{version:0},draftTimer:null,backupTimer:null,backupSuspended:false,recovered:false};
   const CATEGORIES={live:'LIVE',fc:'FC EVENT',radio:'RADIO',limista:'LIMISTA',tv_web:'TV・WEB',release:'RELEASE',other:'OTHER'};
 
   const h=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -13,8 +13,11 @@
 
   function openDB(){const stores=[['userEventPlans','eventId'],['settings','key'],['todos','id'],['personalSchedules','id'],['travelBookings','id'],['setlists','id'],['talkMemos','id'],['commonEvents','id'],['commonOtherItems','id'],['commonMeta','key'],['commonHistory','id'],['adminDrafts','id'],['migrationInfo','id'],['legacyData','id']];const open=v=>new Promise((resolve,reject)=>{const r=v?indexedDB.open(DB,v):indexedDB.open(DB);r.onupgradeneeded=()=>{const d=r.result;stores.forEach(([n,k])=>{if(!d.objectStoreNames.contains(n))d.createObjectStore(n,{keyPath:k})})};r.onsuccess=()=>resolve(r.result);r.onerror=()=>reject(r.error)});return open(DB_VERSION).catch(e=>e&&e.name==='VersionError'?open():Promise.reject(e))}
   function all(store){return new Promise((resolve,reject)=>{const r=state.db.transaction(store,'readonly').objectStore(store).getAll();r.onsuccess=()=>resolve(r.result||[]);r.onerror=()=>reject(r.error)})}
-  function put(store,v){return new Promise((resolve,reject)=>{const tx=state.db.transaction(store,'readwrite');tx.objectStore(store).put(v);tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error)})}
-  function del(store,key){return new Promise((resolve,reject)=>{const tx=state.db.transaction(store,'readwrite');tx.objectStore(store).delete(key);tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error)})}
+  function scheduleAdminBackup(){if(state.backupSuspended||!state.db)return;clearTimeout(state.backupTimer);state.backupTimer=setTimeout(writeAdminEmergencyBackup,400)}
+  async function writeAdminEmergencyBackup(){if(state.backupSuspended||!state.db)return;try{const stores={};for(const n of ['commonEvents','commonOtherItems','commonMeta','commonHistory','adminDrafts'])stores[n]=await all(n);localStorage.setItem(EMERGENCY_COMMON_KEY,JSON.stringify({format:'MaaNote-emergency-backup',version:1,scope:'common',appVersion:APP_VERSION,updatedAt:now(),stores}))}catch(e){console.warn('admin emergency backup failed',e)}}
+  async function recoverAdminEmergencyBackup(){let data=null;try{data=JSON.parse(localStorage.getItem(EMERGENCY_COMMON_KEY)||'null')}catch(e){}if(!data?.stores||data.format!=='MaaNote-emergency-backup')return false;const names=['commonEvents','commonOtherItems','commonMeta','commonHistory','adminDrafts'];const current=await Promise.all(names.map(all));if(!current.every(x=>!x.length))return false;if(!names.some(n=>(data.stores[n]||[]).length))return false;state.backupSuspended=true;try{for(const n of names)for(const row of data.stores[n]||[])await put(n,structuredClone(row),true);state.recovered=true;return true}finally{state.backupSuspended=false}}
+  function put(store,v,skipBackup=false){return new Promise((resolve,reject)=>{const tx=state.db.transaction(store,'readwrite');tx.objectStore(store).put(v);tx.oncomplete=()=>{if(!skipBackup)scheduleAdminBackup();resolve()};tx.onerror=()=>reject(tx.error)})}
+  function del(store,key){return new Promise((resolve,reject)=>{const tx=state.db.transaction(store,'readwrite');tx.objectStore(store).delete(key);tx.oncomplete=()=>{scheduleAdminBackup();resolve()};tx.onerror=()=>reject(tx.error)})}
 
   async function load(){
     let events=await all('commonEvents');
@@ -35,7 +38,7 @@
     const m=(await all('commonMeta')).find(x=>x.key==='publish'); state.meta=m||{version:0};
   }
 
-  function shell(content){return `<main class="shell"><header class="top"><div><div class="brand">MaaNote Admin</div><div class="sub">管理者用 · Stage 8 TEST</div></div><a class="app-link" href="./index.html">利用者画面へ</a></header><div class="warning"><strong>TEST用の管理者画面です。</strong><br>このStageでは同じ端末の「管理者配信データ領域」へ公開をシミュレーションします。ユーザー個人データにはアクセスしません。本番運用では、公開APIを<strong>サーバー側認証</strong>で保護してから使用します。URLを隠すだけの認証にはしません。</div><nav class="tabs"><button data-tab="release" class="${state.tab==='release'?'active':''}">3rd Single</button><button data-tab="other" class="${state.tab==='other'?'active':''}">その他</button><button data-tab="history" class="${state.tab==='history'?'active':''}">履歴</button></nav><div class="content">${content}</div></main>`}
+  function shell(content){return `<main class="shell"><header class="top"><div><div class="brand">MaaNote Admin</div><div class="sub">管理者用 · Stage 9 RC1.1 TEST</div></div><a class="app-link" href="./index.html">利用者画面へ</a></header><div class="warning"><strong>TEST用の管理者画面です。</strong><br>このStageでは同じ端末の「管理者配信データ領域」へ公開をシミュレーションします。ユーザー個人データにはアクセスしません。本番運用では、公開APIを<strong>サーバー側認証</strong>で保護してから使用します。URLを隠すだけの認証にはしません。</div><nav class="tabs"><button data-tab="release" class="${state.tab==='release'?'active':''}">3rd Single</button><button data-tab="other" class="${state.tab==='other'?'active':''}">その他</button><button data-tab="history" class="${state.tab==='history'?'active':''}">履歴</button></nav><div class="content">${content}</div></main>`}
 
   function render(){
     if(state.tab==='release') app.innerHTML=shell(releaseList());
@@ -135,6 +138,6 @@
   function exportCommon(){const payload={format:'MaaNote-common-data',version:1,publishMeta:state.meta,events:state.events,otherItems:state.other,history:state.history,exportedAt:now()};const blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'});const u=URL.createObjectURL(blob),a=document.createElement('a');a.href=u;a.download=`MaaNote_common_v${state.meta.version||0}.json`;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),1000);showToast('配信データを書き出しました')}
   let tt;function showToast(msg){clearTimeout(tt);toast.textContent=msg;toast.classList.add('show');tt=setTimeout(()=>toast.classList.remove('show'),1300)}
 
-  async function boot(){try{state.db=await openDB();await load();render()}catch(e){console.error(e);app.innerHTML=shell('<div class="empty">管理者データ領域を開けませんでした。</div>')}}
+  async function boot(){try{state.db=await openDB();await recoverAdminEmergencyBackup();await load();scheduleAdminBackup();render();if(state.recovered)setTimeout(()=>showToast('端末バックアップから管理者データを自動復旧しました'),250)}catch(e){console.error(e);app.innerHTML=shell('<div class="empty">管理者データ領域を開けませんでした。</div>')}}
   boot();
 })();

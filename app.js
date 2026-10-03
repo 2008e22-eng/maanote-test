@@ -1,8 +1,8 @@
 (() => {
   'use strict';
 
-  const APP_VERSION = '0.9-stage9-rc1';
-  const APP_VERSION_LABEL = 'v0.9 Stage 9 RC1';
+  const APP_VERSION = '0.9-stage9-rc1.1';
+  const APP_VERSION_LABEL = 'v0.9 Stage 9 RC1.1';
   const ACCENT = '#47B0A0';
   const OFFICIAL_URL = 'https://www.jp-r.co.jp/masaki_satou/event/006feb74b8da455d4d8e8d30b5f54904965d113acebc5cffe84c79f8d2b7cc76/';
 
@@ -160,6 +160,7 @@
     summaryMoneyVisible:false,
     settings:{ mode:'personal_management', homeEventFilter:'all', headerImage:null, previewDate:null, imageQuality:'standard', fontSize:'standard', rememberEventFilter:true, lastEventFilter:'all' },
     settingsReturnScreen:'home',
+    recoveredEmergencyBackup:false,
     db:null
   };
 
@@ -216,6 +217,105 @@
     });
   }
 
+
+  const EMERGENCY_PERSONAL_KEY='MaaNoteEmergencyPersonalV1';
+  const EMERGENCY_COMMON_KEY='MaaNoteEmergencyCommonV1';
+  let emergencyBackupTimer=null;
+  let emergencyBackupSuspended=false;
+
+  function emergencySanitize(value,key=''){
+    if(key==='headerImage' || key==='images' || key==='dataUrl') return key==='images'?[]:null;
+    if(typeof value==='string' && value.startsWith('data:image/')) return null;
+    if(Array.isArray(value)) return value.map(v=>emergencySanitize(v,''));
+    if(value && typeof value==='object'){
+      const out={};
+      for(const [k,v] of Object.entries(value)) out[k]=emergencySanitize(v,k);
+      return out;
+    }
+    return value;
+  }
+
+  function parseEmergencyBackup(key){
+    try{
+      const raw=localStorage.getItem(key);
+      if(!raw) return null;
+      const data=JSON.parse(raw);
+      return data && data.format==='MaaNote-emergency-backup' ? data : null;
+    }catch(err){
+      console.warn('Emergency backup parse failed',err);
+      return null;
+    }
+  }
+
+  async function writeEmergencyBackup(){
+    if(emergencyBackupSuspended || !state.db) return;
+    try{
+      const personalStores=['userEventPlans','settings','todos','personalSchedules','travelBookings','setlists','talkMemos','migrationInfo','legacyData'];
+      const commonStores=['commonEvents','commonOtherItems','commonMeta','commonHistory','adminDrafts'];
+      const personal={};
+      const common={};
+      for(const store of personalStores) personal[store]=emergencySanitize(await idbGetAll(store),store);
+      for(const store of commonStores) common[store]=emergencySanitize(await idbGetAll(store),store);
+      localStorage.setItem(EMERGENCY_PERSONAL_KEY,JSON.stringify({
+        format:'MaaNote-emergency-backup',version:1,scope:'personal',appVersion:APP_VERSION,
+        updatedAt:new Date().toISOString(),stores:personal
+      }));
+      localStorage.setItem(EMERGENCY_COMMON_KEY,JSON.stringify({
+        format:'MaaNote-emergency-backup',version:1,scope:'common',appVersion:APP_VERSION,
+        updatedAt:new Date().toISOString(),stores:common
+      }));
+    }catch(err){
+      console.warn('Emergency backup write failed',err);
+    }
+  }
+
+  function scheduleEmergencyBackup(){
+    if(emergencyBackupSuspended || !state.db) return;
+    clearTimeout(emergencyBackupTimer);
+    emergencyBackupTimer=setTimeout(()=>writeEmergencyBackup(),450);
+  }
+
+  async function restoreEmergencyBackupIfNeeded(){
+    if(!state.db) return false;
+    let restored=false;
+    emergencyBackupSuspended=true;
+    try{
+      const personalBackup=parseEmergencyBackup(EMERGENCY_PERSONAL_KEY);
+      if(personalBackup?.stores){
+        const personalStores=['userEventPlans','settings','todos','personalSchedules','travelBookings','setlists','talkMemos','migrationInfo','legacyData'];
+        const current=await Promise.all(personalStores.map(store=>idbGetAll(store)));
+        const currentCompletelyEmpty=current.every(rows=>!rows.length);
+        const backupHasData=personalStores.some(store=>(personalBackup.stores[store]||[]).length);
+        if(currentCompletelyEmpty && backupHasData){
+          for(const store of personalStores){
+            for(const row of personalBackup.stores[store]||[]) await idbPut(store,structuredClone(row),{skipEmergencyBackup:true});
+          }
+          restored=true;
+        }
+      }
+
+      const commonBackup=parseEmergencyBackup(EMERGENCY_COMMON_KEY);
+      if(commonBackup?.stores){
+        const commonStores=['commonEvents','commonOtherItems','commonMeta','commonHistory','adminDrafts'];
+        const current=await Promise.all(commonStores.map(store=>idbGetAll(store)));
+        const currentCompletelyEmpty=current.every(rows=>!rows.length);
+        const backupHasData=commonStores.some(store=>(commonBackup.stores[store]||[]).length);
+        if(currentCompletelyEmpty && backupHasData){
+          for(const store of commonStores){
+            for(const row of commonBackup.stores[store]||[]) await idbPut(store,structuredClone(row),{skipEmergencyBackup:true});
+          }
+          restored=true;
+        }
+      }
+    }catch(err){
+      console.warn('Emergency backup recovery failed',err);
+    }finally{
+      emergencyBackupSuspended=false;
+    }
+    state.recoveredEmergencyBackup=restored;
+    return restored;
+  }
+
   function idbGetAll(store){
     return new Promise((resolve,reject)=>{
       const tx=state.db.transaction(store,'readonly');
@@ -223,11 +323,15 @@
       req.onsuccess=()=>resolve(req.result||[]); req.onerror=()=>reject(req.error);
     });
   }
-  function idbPut(store,value){
+  function idbPut(store,value,{skipEmergencyBackup=false}={}){
     return new Promise((resolve,reject)=>{
       const tx=state.db.transaction(store,'readwrite');
       tx.objectStore(store).put(value);
-      tx.oncomplete=()=>resolve(); tx.onerror=()=>reject(tx.error);
+      tx.oncomplete=()=>{
+        if(!skipEmergencyBackup) scheduleEmergencyBackup();
+        resolve();
+      };
+      tx.onerror=()=>reject(tx.error);
     });
   }
 
@@ -270,6 +374,7 @@
 
   async function initData(){
     state.db = await openDB();
+    await restoreEmergencyBackupIfNeeded();
     await loadCommonData();
     const plans=await idbGetAll('userEventPlans');
     state.userPlans=Object.fromEntries(plans.filter(p=>!p.deleted).map(p=>[p.eventId,p]));
@@ -300,6 +405,7 @@
       talkMemos=structuredClone(initialTalkMemos);
     }
     state.talkMemos=talkMemos.filter(x=>!x.deleted);
+    scheduleEmergencyBackup();
   }
 
   function applyFontSize(size){
@@ -479,6 +585,17 @@
     if(diff===0) return 'today'; if(diff===1) return 'tomorrow'; return 'normal';
   }
 
+  function homePresentationMode(ev){
+    const mode=homeMode(ev);
+    // TEST/display mapping:
+    // actual date => same contents as the previous-day display
+    // previous day => unchanged
+    // event day ("本日") => the former actual-date/normal display
+    if(!state.settings.previewDate) return 'tomorrow';
+    if(mode==='today') return 'normal';
+    return mode;
+  }
+
   function nextItem(ev){
     const parts=ev.parts||[];
     const items=[];
@@ -517,7 +634,7 @@
     const candidates=homeEventCandidates();
     const ev=candidates[0]||officialEvents[0];
     const plan=state.userPlans[ev.id]||{};
-    const mode=homeMode(ev);
+    const mode=homePresentationMode(ev);
     const next=nextItem(ev);
     const headerStyle=state.settings.headerImage?`style="background-image:url('${state.settings.headerImage.replace(/'/g,"%27")}')"`:'';
     const headerClass=state.settings.headerImage?'home-hero has-image':'home-hero';
@@ -1617,7 +1734,7 @@
 
     app.innerHTML=`<main class="screen">${simpleTopbar('集計')}
       <div class="content summary-content">
-        <span class="test-ribbon">TEST BUILD · v0.9 Stage 9 RC1 · OFFLINE</span>
+        <span class="test-ribbon">TEST BUILD · v0.9 Stage 9 RC1.1 · OFFLINE</span>
         <div class="test-note">端末に保存されている個人データから自動集計します。CD・トーク券は「参加確定」イベントの入力値を集計します。</div>
 
         <section class="summary-kpi-grid">
@@ -1791,7 +1908,7 @@
 
         <div class="settings-section-title">TEST</div>
         <section class="card settings-card">
-          <label class="settings-field"><span><strong>ホーム表示日</strong><small>通常日・前日・当日の表示確認用</small></span><select class="settings-select" data-setting-preview><option value="" ${!state.settings.previewDate?'selected':''}>実際の日付</option><option value="2026-11-10" ${state.settings.previewDate==='2026-11-10'?'selected':''}>通常日 11/10</option><option value="2026-11-14" ${state.settings.previewDate==='2026-11-14'?'selected':''}>前日 11/14</option><option value="2026-11-15" ${state.settings.previewDate==='2026-11-15'?'selected':''}>当日 11/15</option></select></label>
+          <label class="settings-field"><span><strong>ホーム表示日</strong><small>通常日・前日・当日の表示確認用</small></span><select class="settings-select" data-setting-preview><option value="" ${!state.settings.previewDate?'selected':''}>実際の日付（前日と同じ表示）</option><option value="2026-11-10" ${state.settings.previewDate==='2026-11-10'?'selected':''}>通常日 11/10</option><option value="2026-11-14" ${state.settings.previewDate==='2026-11-14'?'selected':''}>前日 11/14</option><option value="2026-11-15" ${state.settings.previewDate==='2026-11-15'?'selected':''}>本日 11/15（通常表示）</option></select></label>
         </section>
 
         <div class="settings-section-title">アプリ情報</div>
@@ -1919,8 +2036,9 @@
 
   async function boot(){
     try { await initData(); }
-    catch(err){ console.error(err); state.userPlans=structuredClone(initialUserPlans); showToast('端末保存の初期化に失敗しました'); }
+    catch(err){ console.error(err); state.userPlans={}; showToast('端末保存の初期化に失敗しました'); }
     render();
+    if(state.recoveredEmergencyBackup) setTimeout(()=>showToast('端末バックアップからデータを自動復旧しました'),250);
     updateConnectivity();
     window.addEventListener('online',()=>updateConnectivity({announce:true}));
     window.addEventListener('offline',()=>updateConnectivity({announce:true}));
