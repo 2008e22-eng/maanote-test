@@ -788,3 +788,26 @@ html[data-font-size="small"]{-webkit-text-size-adjust:90%;text-size-adjust:90%}
 html[data-font-size="standard"]{-webkit-text-size-adjust:100%;text-size-adjust:100%}
 html[data-font-size="large"]{-webkit-text-size-adjust:120%;text-size-adjust:120%}
 html[data-font-size="xlarge"]{-webkit-text-size-adjust:140%;text-size-adjust:140%}
+
+
+/* 2026-10-03 layout fix: keep home card clear of header + prevent part time wrapping */
+.home-content{
+  margin-top:8px !important;
+}
+.part-line{
+  grid-template-columns:.62fr .9fr 1.18fr 1.45fr .7fr !important;
+  column-gap:4px;
+}
+.part-line > span{
+  min-width:0;
+  white-space:nowrap;
+  word-break:keep-all;
+  overflow-wrap:normal;
+}
+html[data-font-size="xlarge"] .home-content{
+  margin-top:10px !important;
+}
+html[data-font-size="xlarge"] .part-line{
+  grid-template-columns:.58fr .92fr 1.28fr 1.55fr .67fr !important;
+  column-gap:2px;
+}

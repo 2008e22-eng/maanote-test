@@ -1513,7 +1513,7 @@
 
     app.innerHTML=`<main class="screen">${simpleTopbar('集計')}
       <div class="content summary-content">
-        <span class="test-ribbon">TEST BUILD · v0.9 Stage 7 · OFFLINE</span>
+        <span class="test-ribbon">TEST BUILD · v0.9 Stage 8 · OFFLINE</span>
         <div class="test-note">端末に保存されている個人データから自動集計します。CD・トーク券は「参加確定」イベントの入力値、遠征費はキャンセル済みを除く入力済み旅程金額の合計です。</div>
 
         <section class="summary-kpi-grid">
@@ -1557,7 +1557,7 @@
 
   function renderPlaceholder(which){
     const titles={schedule:'予定',travel:'旅程',summary:'集計'};
-    app.innerHTML=`<main class="screen">${simpleTopbar(titles[which]||'MaaNote')}<div class="content"><div class="card placeholder-screen"><div><strong>${titles[which]||''}</strong>Stage 7では管理者配信まで実装済みです。</div></div></div></main>${tabbar(which)}`;
+    app.innerHTML=`<main class="screen">${simpleTopbar(titles[which]||'MaaNote')}<div class="content"><div class="card placeholder-screen"><div><strong>${titles[which]||''}</strong>Stage 8では旧v9.6データ移行まで実装済みです。</div></div></div></main>${tabbar(which)}`;
     bindCommon();
   }
 
@@ -1672,7 +1672,7 @@
 
         <div class="settings-section-title">アプリ情報</div>
         <section class="card settings-card">
-          <div class="settings-status-row"><span><strong>MaaNote</strong><small>3rd Single イベントまとめ · 非公式</small></span><b>v0.9 Stage 7</b></div>
+          <div class="settings-status-row"><span><strong>MaaNote</strong><small>3rd Single イベントまとめ · 非公式</small></span><b>v0.9 Stage 8</b></div>
           <button class="settings-nav-row" data-check-update><span><strong>更新を確認</strong><small>アプリ本体の更新のみ確認します</small></span><span class="chev">›</span></button>
         </section>
         <div class="settings-footnote">設定変更は自動保存されます。アプリ本体の更新やキャッシュ更新で、IndexedDBの個人データを削除しない設計です。</div>
@@ -1700,9 +1700,12 @@
   async function exportPersonalData(includeImages=false){
     const travel=state.travelBookings.filter(x=>!x.deleted).map(x=>includeImages?x:{...x,images:(x.images||[]).map(img=>({id:img.id,name:img.name,createdAt:img.createdAt,dataUrl:null}))});
     const settings={...state.settings}; if(!includeImages)settings.headerImage=null;
+    const rawLegacyData=await idbGetAll('legacyData').catch(()=>[]);
+    const legacyData=includeImages?rawLegacyData:rawLegacyData.map(x=>({...x,orphanBookingImages:(x.orphanBookingImages||[]).map(img=>({...img,dataUrl:null}))}));
+    const migrationInfo=await idbGetAll('migrationInfo').catch(()=>[]);
     const payload={
-      format:'MaaNote-export',version:1,appVersion:'0.9-stage7-offline',exportedAt:new Date().toISOString(),includeImages,
-      userEventPlans:Object.values(state.userPlans).filter(x=>!x.deleted),todos:state.todos.filter(x=>!x.deleted),personalSchedules:state.personalSchedules.filter(x=>!x.deleted),travelBookings:travel,setlists:state.setlists.filter(x=>!x.deleted),talkMemos:state.talkMemos.filter(x=>!x.deleted),settings
+      format:'MaaNote-export',version:1,appVersion:'0.9-stage8-layoutfix2',exportedAt:new Date().toISOString(),includeImages,
+      userEventPlans:Object.values(state.userPlans).filter(x=>!x.deleted),todos:state.todos.filter(x=>!x.deleted),personalSchedules:state.personalSchedules.filter(x=>!x.deleted),travelBookings:travel,setlists:state.setlists.filter(x=>!x.deleted),talkMemos:state.talkMemos.filter(x=>!x.deleted),settings,legacyData,migrationInfo
     };
     const blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'}); const url=URL.createObjectURL(blob); const a=document.createElement('a');
     a.href=url; a.download=`MaaNote_backup_${fmtISODate(new Date())}${includeImages?'_with_images':''}.json`; document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(url),1500);
@@ -1722,7 +1725,7 @@
     if(!navigator.onLine){showToast('更新確認はオンライン時に利用できます');return;}
     try{
       const res=await fetch(`./version.json?t=${Date.now()}`,{cache:'no-store'}); if(!res.ok)throw new Error('version'); const data=await res.json();
-      if(data.version && data.version!=='0.9-stage7-offline') showToast(`新しい版があります：${data.version}`); else showToast('✓ このTEST版は最新です');
+      if(data.version && data.version!=='0.9-stage8-layoutfix2') showToast(`新しい版があります：${data.version}`); else showToast('✓ このTEST版は最新です');
       if('serviceWorker' in navigator){const reg=await navigator.serviceWorker.getRegistration();await reg?.update();}
     }catch(err){showToast('更新を確認できませんでした');}
   }

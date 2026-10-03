@@ -1,9 +1,9 @@
-const CACHE = 'maanote-v0.9-stage7-homeadmin-fontsize2-20261003';
+const CACHE = 'maanote-v0.9-stage8-layoutfix2-20261003';
 const APP_SHELL = [
   './',
   './index.html',
-  './styles.css?v=0.9-stage7-homeadmin-fontsize2',
-  './app.js?v=0.9-stage7-homeadmin-fontsize2',
+  './styles.css?v=0.9-stage8-layoutfix2',
+  './app.js?v=0.9-stage8-layoutfix2',
   './manifest.webmanifest',
   './icon.svg',
   './icon-192.png',
@@ -11,9 +11,12 @@ const APP_SHELL = [
   './apple-touch-icon.png',
   './version.json',
   './admin.html',
-  './admin.css?v=0.9-stage7-homeadmin-fontsize2',
-  './admin.js?v=0.9-stage7-homeadmin-fontsize2',
-  './common-seed.json'
+  './admin.css?v=0.9-stage8-layoutfix2',
+  './admin.js?v=0.9-stage8-layoutfix2',
+  './common-seed.json',
+  './migrate-v96.html',
+  './migrate-v96.css?v=0.9-stage8-layoutfix2',
+  './migrate-v96.js?v=0.9-stage8-layoutfix2'
 ];
 
 self.addEventListener('install', event => {
@@ -37,10 +40,12 @@ self.addEventListener('fetch', event => {
       try {
         const fresh = await fetch(req);
         const cache = await caches.open(CACHE);
-        cache.put(url.pathname.endsWith('/admin.html') ? './admin.html' : './index.html', fresh.clone());
+        const page = url.pathname.endsWith('/admin.html') ? './admin.html' : (url.pathname.endsWith('/migrate-v96.html') ? './migrate-v96.html' : './index.html');
+        cache.put(page, fresh.clone());
         return fresh;
       } catch (_) {
         if (url.pathname.endsWith('/admin.html')) return (await caches.match('./admin.html')) || (await caches.match('./index.html'));
+        if (url.pathname.endsWith('/migrate-v96.html')) return (await caches.match('./migrate-v96.html')) || (await caches.match('./index.html'));
         return (await caches.match('./index.html')) || (await caches.match('./'));
       }
     })());

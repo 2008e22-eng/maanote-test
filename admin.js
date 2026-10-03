@@ -35,7 +35,7 @@
     const m=(await all('commonMeta')).find(x=>x.key==='publish'); state.meta=m||{version:0};
   }
 
-  function shell(content){return `<main class="shell"><header class="top"><div><div class="brand">MaaNote Admin</div><div class="sub">管理者用 · Stage 7 TEST</div></div><a class="app-link" href="./index.html">利用者画面へ</a></header><div class="warning"><strong>TEST用の管理者画面です。</strong><br>このStageでは同じ端末の「管理者配信データ領域」へ公開をシミュレーションします。ユーザー個人データにはアクセスしません。本番運用では、公開APIを<strong>サーバー側認証</strong>で保護してから使用します。URLを隠すだけの認証にはしません。</div><nav class="tabs"><button data-tab="release" class="${state.tab==='release'?'active':''}">3rd Single</button><button data-tab="other" class="${state.tab==='other'?'active':''}">その他</button><button data-tab="history" class="${state.tab==='history'?'active':''}">履歴</button></nav><div class="content">${content}</div></main>`}
+  function shell(content){return `<main class="shell"><header class="top"><div><div class="brand">MaaNote Admin</div><div class="sub">管理者用 · Stage 8 TEST</div></div><a class="app-link" href="./index.html">利用者画面へ</a></header><div class="warning"><strong>TEST用の管理者画面です。</strong><br>このStageでは同じ端末の「管理者配信データ領域」へ公開をシミュレーションします。ユーザー個人データにはアクセスしません。本番運用では、公開APIを<strong>サーバー側認証</strong>で保護してから使用します。URLを隠すだけの認証にはしません。</div><nav class="tabs"><button data-tab="release" class="${state.tab==='release'?'active':''}">3rd Single</button><button data-tab="other" class="${state.tab==='other'?'active':''}">その他</button><button data-tab="history" class="${state.tab==='history'?'active':''}">履歴</button></nav><div class="content">${content}</div></main>`}
 
   function render(){
     if(state.tab==='release') app.innerHTML=shell(releaseList());
