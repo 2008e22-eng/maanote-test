@@ -1,19 +1,31 @@
 {
-  "name": "MaaNote TEST · v0.9 RC2",
+  "name": "MaaNote TEST · Stage 7 Offline",
   "short_name": "MaaNote",
-  "description": "非公式ファン向けイベント・遠征管理アプリ MaaNote。初回オンライン読込後は主要機能をオフライン利用できます。",
+  "description": "非公式ファン向けイベント・遠征管理アプリ MaaNote TEST BUILD。初回読込後はホーム・イベント・予定・TODO・旅程・予約画像・セトリ・話したいことメモ・集計・設定などをオフライン利用可能。",
   "id": "./",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
-  "display_override": ["standalone", "minimal-ui"],
   "background_color": "#F5F8F7",
   "theme_color": "#47B0A0",
-  "lang": "ja-JP",
-  "categories": ["lifestyle", "travel", "utilities"],
   "icons": [
-    {"src":"./icon-192.png","sizes":"192x192","type":"image/png","purpose":"any maskable"},
-    {"src":"./icon-512.png","sizes":"512x512","type":"image/png","purpose":"any maskable"},
-    {"src":"./icon.svg","sizes":"any","type":"image/svg+xml","purpose":"any maskable"}
+    {
+      "src": "./icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "./icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "./icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
   ]
 }

@@ -2,8 +2,6 @@
   'use strict';
 
   const ACCENT = '#47B0A0';
-  const APP_VERSION = '0.9-rc2';
-  const APP_BUILD = '2026-10-03.4-github-pages';
   const OFFICIAL_URL = 'https://up-front-works.jp/event/006feb74b8da455d4d8e8d30b5f54904965d113acebc5cffe84c79f8d2b7cc76/';
 
   // TEST BUILD: current announced event dates/venues are used as UI data.
@@ -81,13 +79,52 @@
     }
   ];
 
-  const initialUserPlans = {};
+  const initialUserPlans = {
+    'release-20261115-tokyo': {
+      eventId:'release-20261115-tokyo', participationStatus:'confirmed', cdQuantity:8,
+      parts:{ p1:{talkTicketQuantity:3,priorityNumber:108}, p2:{talkTicketQuantity:4,priorityNumber:53} },
+      createdAt:new Date().toISOString(), updatedAt:new Date().toISOString(), revision:1, deleted:false
+    },
+    'release-20261108-ishikawa': {
+      eventId:'release-20261108-ishikawa', participationStatus:'maybe', cdQuantity:null, parts:{},
+      createdAt:new Date().toISOString(), updatedAt:new Date().toISOString(), revision:1, deleted:false
+    }
+  };
 
-  const initialTodos = [];
 
-  const initialPersonalSchedules = [];
+  const initialTodos = [
+    {id:'todo-hotel-20261110', title:'ホテル予約を確認', eventId:'release-20261115-tokyo', dueDate:'2026-11-10', dueTime:null, memo:'予約内容とキャンセル期限を確認', completed:false, showOnCalendar:true, createdBy:'suggestion', sortOrder:1, createdAt:'2026-10-02T12:00:00+09:00', updatedAt:'2026-10-02T12:00:00+09:00', revision:1, deleted:false},
+    {id:'todo-battery-20261114', title:'モバイルバッテリーを充電', eventId:'release-20261115-tokyo', dueDate:'2026-11-14', dueTime:'21:00', memo:null, completed:false, showOnCalendar:true, createdBy:'manual', sortOrder:2, createdAt:'2026-10-02T12:00:00+09:00', updatedAt:'2026-10-02T12:00:00+09:00', revision:1, deleted:false},
+    {id:'todo-friend-20261115', title:'○○ちゃんに連絡', eventId:'release-20261115-tokyo', dueDate:'2026-11-15', dueTime:'11:30', memo:'到着時間を送る', completed:false, showOnCalendar:true, createdBy:'manual', sortOrder:3, createdAt:'2026-10-02T12:00:00+09:00', updatedAt:'2026-10-02T12:00:00+09:00', revision:1, deleted:false},
+    {id:'todo-example-done', title:'新幹線の予約', eventId:'release-20261115-tokyo', dueDate:'2026-11-01', dueTime:null, memo:null, completed:true, completedAt:'2026-10-30T09:00:00+09:00', showOnCalendar:false, createdBy:'manual', sortOrder:4, createdAt:'2026-10-02T12:00:00+09:00', updatedAt:'2026-10-30T09:00:00+09:00', revision:2, deleted:false}
+  ];
 
-  const initialTravelBookings = [];
+  const initialPersonalSchedules = [
+    {id:'schedule-meet-20261115', eventId:'release-20261115-tokyo', date:'2026-11-15', time:'12:30', title:'○○ちゃんと待ち合わせ', memo:'会場入口付近', createdAt:'2026-10-02T12:00:00+09:00', updatedAt:'2026-10-02T12:00:00+09:00', revision:1, deleted:false}
+  ];
+
+  const initialTravelBookings = [
+    {
+      id:'travel-sample-outbound-20261115', eventId:'release-20261115-tokyo',
+      type:'train', direction:'outbound', title:'東京行き新幹線', date:'2026-11-15',
+      startTime:'09:10', endDate:'2026-11-15', endTime:'11:40',
+      from:'新大阪', to:'東京', seat:'12号車 8A', bookingSite:'EX予約',
+      bookingCode:'TEST-ABC123', partySize:1, cost:14720,
+      paymentStatus:'paid', bookingStatus:'confirmed', paymentDue:null, freeCancelUntil:null,
+      url:null, notes:'画面確認用サンプルです。', images:[], sample:true,
+      createdAt:'2026-10-02T12:00:00+09:00', updatedAt:'2026-10-02T12:00:00+09:00', revision:1, deleted:false
+    },
+    {
+      id:'travel-sample-hotel-20261115', eventId:'release-20261115-tokyo',
+      type:'hotel', direction:'stay', title:'○○ホテル東京', date:'2026-11-15',
+      startTime:'15:00', endDate:'2026-11-16', endTime:'10:00',
+      from:null, to:null, seat:null, bookingSite:'楽天トラベル',
+      bookingCode:'TEST-HOTEL456', partySize:1, cost:9800,
+      paymentStatus:'paid', bookingStatus:'confirmed', paymentDue:null, freeCancelUntil:'2026-11-14',
+      url:null, notes:'画面確認用サンプルです。', images:[], sample:true,
+      createdAt:'2026-10-02T12:00:00+09:00', updatedAt:'2026-10-02T12:00:00+09:00', revision:1, deleted:false
+    }
+  ];
 
 
   const initialSetlists = [];
@@ -127,10 +164,7 @@
   const toastEl = document.getElementById('toast');
   const sheetRoot = document.getElementById('sheetRoot');
   const networkStatusEl = document.getElementById('networkStatus');
-  const updateBannerEl = document.getElementById('updateBanner');
   let wasOffline = !navigator.onLine;
-  let swRegistration = null;
-  let refreshingForUpdate = false;
 
   const icon = (name) => {
     const common = 'fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"';
@@ -155,7 +189,7 @@
 
   function openDB(){
     return new Promise((resolve,reject)=>{
-      const req = indexedDB.open('MaaNoteDB',7);
+      const req = indexedDB.open('MaaNoteDB',6);
       req.onupgradeneeded = () => {
         const db=req.result;
         if(!db.objectStoreNames.contains('userEventPlans')) db.createObjectStore('userEventPlans',{keyPath:'eventId'});
@@ -170,8 +204,6 @@
         if(!db.objectStoreNames.contains('commonMeta')) db.createObjectStore('commonMeta',{keyPath:'key'});
         if(!db.objectStoreNames.contains('commonHistory')) db.createObjectStore('commonHistory',{keyPath:'id'});
         if(!db.objectStoreNames.contains('adminDrafts')) db.createObjectStore('adminDrafts',{keyPath:'id'});
-        if(!db.objectStoreNames.contains('migrationInfo')) db.createObjectStore('migrationInfo',{keyPath:'id'});
-        if(!db.objectStoreNames.contains('legacyData')) db.createObjectStore('legacyData',{keyPath:'id'});
       };
       req.onsuccess=()=>resolve(req.result);
       req.onerror=()=>reject(req.error);
@@ -496,7 +528,7 @@
           </div>
         </header>
         <div class="content home-content">
-          <span class="test-ribbon">TEST BUILD · v0.9 RC2 · OFFLINE</span>
+          <span class="test-ribbon">TEST BUILD · v0.9 Stage 7 · OFFLINE</span>
           <div class="test-note">画面確認用のテストデータを含みます。未発表項目は推測せず「未発表」と表示しています。初回オンライン読込後は、主要画面と端末保存データをオフラインでも利用できます。</div>
           ${homeEventCard(ev,plan,mode,next,parts)}
           ${state.settings.mode!=='view_only'?homePersonalSection(ev,mode):''}
@@ -1037,7 +1069,7 @@
         <div class="filter-scroll travel-filter-scroll">
           ${[['all','すべて'],['outbound','行き'],['stay','宿泊'],['return','帰り']].map(([k,l])=>`<button class="filter-chip ${state.travelDirectionFilter===k?'active':''}" data-travel-filter="${k}">${l}</button>`).join('')}
         </div>
-        <span class="test-ribbon" style="margin:4px 0 8px">RC2 · 端末保存</span>
+        <span class="test-ribbon" style="margin:4px 0 8px">Stage 4 · 端末保存</span>
         <div class="travel-list">${list.length?list.map(travelCard).join(''):`<div class="card empty-state">旅程はまだありません。<br><button class="inline-add" data-add-travel data-event-id="${state.travelEventFilter||''}">＋ 旅程を追加</button></div>`}</div>
         <div class="travel-privacy-note">予約画像はこのStageでは端末のIndexedDBに保存します。画像を追加しただけでは外部サービスへ送信しません。</div>
       </div>
@@ -1452,7 +1484,7 @@
 
     app.innerHTML=`<main class="screen">${simpleTopbar('集計')}
       <div class="content summary-content">
-        <span class="test-ribbon">TEST BUILD · v0.9 RC2 · OFFLINE</span>
+        <span class="test-ribbon">TEST BUILD · v0.9 Stage 7 · OFFLINE</span>
         <div class="test-note">端末に保存されている個人データから自動集計します。CD・トーク券は「参加確定」イベントの入力値、遠征費はキャンセル済みを除く入力済み旅程金額の合計です。</div>
 
         <section class="summary-kpi-grid">
@@ -1496,7 +1528,7 @@
 
   function renderPlaceholder(which){
     const titles={schedule:'予定',travel:'旅程',summary:'集計'};
-    app.innerHTML=`<main class="screen">${simpleTopbar(titles[which]||'MaaNote')}<div class="content"><div class="card placeholder-screen"><div><strong>${titles[which]||''}</strong>v0.9 RC2 テスト候補版です。</div></div></div></main>${tabbar(which)}`;
+    app.innerHTML=`<main class="screen">${simpleTopbar(titles[which]||'MaaNote')}<div class="content"><div class="card placeholder-screen"><div><strong>${titles[which]||''}</strong>Stage 7では管理者配信まで実装済みです。</div></div></div></main>${tabbar(which)}`;
     bindCommon();
   }
 
@@ -1561,7 +1593,6 @@
   function renderSettings(){
     const h=state.settings.headerImage;
     const swReady=!!navigator.serviceWorker?.controller;
-    const standalone=window.matchMedia?.('(display-mode: standalone)').matches || navigator.standalone===true;
     app.innerHTML=`<main class="screen settings-screen">
       <header class="topbar"><div class="topbar-inner"><button data-settings-back aria-label="戻る">${icon('back')}</button><div class="topbar-title">設定</div><div></div></div></header>
       <div class="content settings-content">
@@ -1581,10 +1612,7 @@
         <div class="settings-section-title">オフライン・データ</div>
         <section class="card settings-card">
           <div class="settings-status-row"><span><strong>保存先</strong><small>v0.9 TEST BUILD</small></span><b>この端末</b></div>
-          <div class="settings-status-row"><span><strong>オフライン利用</strong><small>ホーム・イベント・予定・旅程など</small></span><b class="${swReady?'ok':'muted'}">${swReady?'準備完了':'準備中'}</b></div>
-          <div class="settings-status-row"><span><strong>起動方法</strong><small>ホーム画面からの起動を推奨</small></span><b class="${standalone?'ok':'muted'}">${standalone?'ホーム画面':'ブラウザ'}</b></div>
-          <button class="settings-nav-row" data-pwa-diagnostics><span><strong>オフライン動作チェック</strong><small>端末保存・PWA・通信状態を確認</small></span><span class="chev">›</span></button>
-          <button class="settings-nav-row" data-settings-info="install"><span><strong>ホーム画面に追加する方法</strong><small>iPhoneで圏外起動するための手順</small></span><span class="chev">›</span></button>
+          <div class="settings-status-row"><span><strong>オフライン利用</strong><small>ホーム・イベント・予定・旅程など</small></span><b class="${swReady?'ok':'muted'}">${swReady?'利用可能':'初回読込後'}</b></div>
           <button class="settings-nav-row" data-export-data="data"><span><strong>データを書き出す</strong><small>予約画像・ヘッダー画像を除くJSON</small></span><span class="chev">›</span></button>
           <button class="settings-nav-row" data-export-data="all"><span><strong>画像込みで書き出す</strong><small>ファイルサイズが大きくなる場合があります</small></span><span class="chev">›</span></button>
         </section>
@@ -1609,7 +1637,7 @@
 
         <div class="settings-section-title">アプリ情報</div>
         <section class="card settings-card">
-          <div class="settings-status-row"><span><strong>MaaNote</strong><small>3rd Single イベントまとめ · 非公式</small></span><b>v0.9 RC2</b></div>
+          <div class="settings-status-row"><span><strong>MaaNote</strong><small>3rd Single イベントまとめ · 非公式</small></span><b>v0.9 Stage 7</b></div>
           <button class="settings-nav-row" data-check-update><span><strong>更新を確認</strong><small>アプリ本体の更新のみ確認します</small></span><span class="chev">›</span></button>
         </section>
         <div class="settings-footnote">設定変更は自動保存されます。アプリ本体の更新やキャッシュ更新で、IndexedDBの個人データを削除しない設計です。</div>
@@ -1630,19 +1658,15 @@
     const del=document.querySelector('[data-delete-header]'); if(del)del.onclick=async()=>{if(!state.settings.headerImage)return;await saveSetting('headerImage',null);renderSettings();showToast('✓ ヘッダー画像を削除しました');};
     document.querySelectorAll('[data-export-data]').forEach(b=>b.onclick=()=>exportPersonalData(b.dataset.exportData==='all'));
     document.querySelectorAll('[data-settings-info]').forEach(b=>b.onclick=()=>openSettingsInfo(b.dataset.settingsInfo));
-    const diag=document.querySelector('[data-pwa-diagnostics]'); if(diag)diag.onclick=openPwaDiagnostics;
     document.querySelector('[data-check-update]').onclick=checkForAppUpdate;
   }
 
   async function exportPersonalData(includeImages=false){
     const travel=state.travelBookings.filter(x=>!x.deleted).map(x=>includeImages?x:{...x,images:(x.images||[]).map(img=>({id:img.id,name:img.name,createdAt:img.createdAt,dataUrl:null}))});
     const settings={...state.settings}; if(!includeImages)settings.headerImage=null;
-    const rawLegacyData=await idbGetAll('legacyData').catch(()=>[]);
-    const legacyData=includeImages?rawLegacyData:rawLegacyData.map(x=>({...x,orphanBookingImages:(x.orphanBookingImages||[]).map(img=>({...img,dataUrl:null}))}));
-    const migrationInfo=await idbGetAll('migrationInfo').catch(()=>[]);
     const payload={
-      format:'MaaNote-export',version:1,appVersion:APP_VERSION,exportedAt:new Date().toISOString(),includeImages,
-      userEventPlans:Object.values(state.userPlans).filter(x=>!x.deleted),todos:state.todos.filter(x=>!x.deleted),personalSchedules:state.personalSchedules.filter(x=>!x.deleted),travelBookings:travel,setlists:state.setlists.filter(x=>!x.deleted),talkMemos:state.talkMemos.filter(x=>!x.deleted),settings,legacyData,migrationInfo
+      format:'MaaNote-export',version:1,appVersion:'0.9-stage7-offline',exportedAt:new Date().toISOString(),includeImages,
+      userEventPlans:Object.values(state.userPlans).filter(x=>!x.deleted),todos:state.todos.filter(x=>!x.deleted),personalSchedules:state.personalSchedules.filter(x=>!x.deleted),travelBookings:travel,setlists:state.setlists.filter(x=>!x.deleted),talkMemos:state.talkMemos.filter(x=>!x.deleted),settings
     };
     const blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'}); const url=URL.createObjectURL(blob); const a=document.createElement('a');
     a.href=url; a.download=`MaaNote_backup_${fmtISODate(new Date())}${includeImages?'_with_images':''}.json`; document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(url),1500);
@@ -1652,121 +1676,19 @@
   function openSettingsInfo(kind){
     const map={
       offline:['オフラインでできること','一度オンラインでMaaNoteを読み込んだ後は、ホーム・イベント・予定・TODO・旅程・セトリ・話したいことメモ・集計を端末保存データで確認できます。圏外でも入力内容は端末へ保存されます。公式ページ、地図、将来のDrive同期やAI解析など通信が必要な機能はオンライン時のみ利用できます。'],
-      install:['ホーム画面に追加する方法','iPhoneではSafariでMaaNoteのTEST URLを開き、共有ボタン →「ホーム画面に追加」→「追加」を選びます。追加後はホーム画面のMaaNoteから一度オンラインで起動してください。その後、機内モードにしてMaaNoteを閉じ、ホーム画面から再起動して表示できればオフライン準備完了です。HTMLファイルをファイルアプリから直接開く方法ではPWAのオフライン機能は利用できません。'],
       privacy:['データの取り扱い','v0.9では個人データをこの端末のIndexedDBに保存します。予約画像やホームヘッダー画像も端末保存です。画像を追加しただけで外部AIへ送信する処理はありません。ブラウザやOS側でサイトデータを削除すると端末データも消える可能性があるため、必要に応じてデータ書き出しを利用してください。'],
       unofficial:['非公式アプリについて','MaaNoteは非公式のファン向けアプリです。佐藤優樹さん、所属事務所、レコード会社、イベント主催者・会場とは関係ありません。情報の反映・訂正に時間がかかる場合があります。イベント参加前には必ず公式サイト・公式SNS等で最新情報をご確認ください。']
     };
     const [title,body]=map[kind]||['情報','']; showSheet(`<div class="sheet-head"><div class="sheet-title">${escapeHTML(title)}</div><button class="text-btn" data-sheet-close>閉じる</button></div><div class="settings-info-text">${escapeHTML(body)}</div>`);
   }
 
-  function showUpdateBanner(version){
-    if(!updateBannerEl)return;
-    updateBannerEl.hidden=false;
-    updateBannerEl.innerHTML=`<div class="update-banner-inner"><div class="update-banner-copy"><strong>新しいMaaNoteがあります</strong><small>${escapeHTML(version||'新しいバージョン')}へ更新できます。個人データは消しません。</small></div><div class="update-banner-actions"><button class="later" data-update-later>あとで</button><button class="apply" data-update-apply>更新</button></div></div>`;
-    updateBannerEl.querySelector('[data-update-later]').onclick=()=>{updateBannerEl.hidden=true;};
-    updateBannerEl.querySelector('[data-update-apply]').onclick=applyWaitingUpdate;
-  }
-
-  async function applyWaitingUpdate(){
-    try{
-      const reg=swRegistration || await navigator.serviceWorker?.getRegistration();
-      if(reg?.waiting){
-        refreshingForUpdate=true;
-        showToast('更新しています…');
-        reg.waiting.postMessage({type:'SKIP_WAITING'});
-        return;
-      }
-      await reg?.update();
-      if(reg?.waiting){
-        refreshingForUpdate=true;
-        reg.waiting.postMessage({type:'SKIP_WAITING'});
-      }else{
-        showToast('更新データを確認しました');
-      }
-    }catch(err){
-      console.warn(err);
-      showToast('更新できませんでした');
-    }
-  }
-
   async function checkForAppUpdate(){
     if(!navigator.onLine){showToast('更新確認はオンライン時に利用できます');return;}
     try{
-      const res=await fetch(`./version.json?t=${Date.now()}`,{cache:'no-store'});
-      if(!res.ok)throw new Error('version');
-      const data=await res.json();
-      const newer=(data.version && data.version!==APP_VERSION) || (data.build && data.build!==APP_BUILD);
-      const reg=swRegistration || await navigator.serviceWorker?.getRegistration();
-      await reg?.update();
-      if(newer || reg?.waiting){
-        showUpdateBanner(data.version||'新しい版');
-        showToast(`新しい版があります：${data.version||''}`.trim());
-      }else{
-        showToast('✓ このTEST版は最新です');
-      }
-    }catch(err){
-      console.warn(err);
-      showToast('更新を確認できませんでした');
-    }
-  }
-
-  function diagnosticRow(level,title,detail,value){
-    const mark=level==='ok'?'✓':level==='warn'?'!':'×';
-    return `<div class="diag-row ${level}"><span class="diag-icon">${mark}</span><span class="diag-copy"><strong>${escapeHTML(title)}</strong><small>${escapeHTML(detail)}</small></span><span class="diag-value">${escapeHTML(value)}</span></div>`;
-  }
-
-  async function openPwaDiagnostics(){
-    const secure=location.protocol==='https:' || location.hostname==='localhost';
-    const swSupported='serviceWorker' in navigator;
-    const controlled=!!navigator.serviceWorker?.controller;
-    const standalone=window.matchMedia?.('(display-mode: standalone)').matches || navigator.standalone===true;
-    let idbOk=!!state.db;
-    if(!idbOk){ try{ await idbGetAll('settings'); idbOk=true; }catch(_){ idbOk=false; } }
-    let swInfo=null;
-    if(controlled){
-      try{
-        swInfo=await new Promise((resolve,reject)=>{
-          const ch=new MessageChannel(); const t=setTimeout(()=>reject(new Error('timeout')),1200);
-          ch.port1.onmessage=e=>{clearTimeout(t);resolve(e.data);};
-          navigator.serviceWorker.controller.postMessage({type:'GET_VERSION'},[ch.port2]);
-        });
-      }catch(_){ swInfo=null; }
-    }
-    const rows=[
-      diagnosticRow(idbOk?'ok':'bad','端末データ保存','IndexedDBへ個人データを保存します',idbOk?'OK':'NG'),
-      diagnosticRow(secure?'ok':'bad','HTTPS','PWA・Service Workerに必要です',secure?'OK':'NG'),
-      diagnosticRow(swSupported && controlled?'ok':'warn','オフラインキャッシュ',controlled?'現在のページをService Workerが制御しています':'オンラインで一度再読み込みしてください',controlled?(swInfo?.version||'OK'):'準備中'),
-      diagnosticRow(standalone?'ok':'warn','ホーム画面起動','iPhoneではホーム画面からの起動を推奨',standalone?'OK':'Safari'),
-      diagnosticRow(navigator.onLine?'ok':'warn','通信状態',navigator.onLine?'現在オンラインです':'現在オフラインです',navigator.onLine?'ONLINE':'OFFLINE')
-    ].join('');
-    showSheet(`<div class="sheet-head"><div class="sheet-title">オフライン動作チェック</div><button class="text-btn" data-sheet-close>閉じる</button></div><div class="diag-list">${rows}</div><div class="form-help" style="margin-top:10px">最終確認は「オンラインで一度起動 → ホーム画面に追加 → 機内モード → MaaNoteを完全に閉じて再起動」で行ってください。</div>`);
-  }
-
-  async function setupServiceWorker(){
-    if(!('serviceWorker' in navigator) || !location.protocol.startsWith('http'))return;
-    try{
-      const reg=await navigator.serviceWorker.register('./sw.js');
-      swRegistration=reg;
-      if(reg.waiting && navigator.serviceWorker.controller) showUpdateBanner('新しい版');
-      reg.addEventListener('updatefound',()=>{
-        const worker=reg.installing;
-        if(!worker)return;
-        worker.addEventListener('statechange',()=>{
-          if(worker.state==='installed' && navigator.serviceWorker.controller){
-            showUpdateBanner('新しい版');
-          }
-        });
-      });
-      navigator.serviceWorker.addEventListener('controllerchange',()=>{
-        if(refreshingForUpdate){ location.reload(); return; }
-        if(state.screen==='settings')renderSettings();
-      });
-      await navigator.serviceWorker.ready;
-      if(state.screen==='settings')renderSettings();
-      if(navigator.onLine) setTimeout(()=>reg.update().catch(()=>{}),1200);
-    }catch(err){
-      console.warn('Service Worker registration failed',err);
-    }
+      const res=await fetch(`./version.json?t=${Date.now()}`,{cache:'no-store'}); if(!res.ok)throw new Error('version'); const data=await res.json();
+      if(data.version && data.version!=='0.9-stage7-offline') showToast(`新しい版があります：${data.version}`); else showToast('✓ このTEST版は最新です');
+      if('serviceWorker' in navigator){const reg=await navigator.serviceWorker.getRegistration();await reg?.update();}
+    }catch(err){showToast('更新を確認できませんでした');}
   }
 
   function openQuickAddSheet(){
@@ -1844,7 +1766,12 @@
         try{ await loadCommonData(); render(); showToast('📢 管理者配信データを更新しました'); }catch(err){ console.warn(err); }
       };
     }
-    await setupServiceWorker();
+    if('serviceWorker' in navigator && location.protocol.startsWith('http')){
+      try {
+        await navigator.serviceWorker.register('./sw.js');
+        await navigator.serviceWorker.ready;
+      } catch(err){ console.warn('Service Worker registration failed',err); }
+    }
   }
   boot();
 })();
