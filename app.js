@@ -155,6 +155,7 @@
     todoFilter:'open',
     todoSelection:false,
     selectedTodoIds:new Set(),
+    summaryMoneyVisible:false,
     settings:{ mode:'personal_management', homeEventFilter:'all', headerImage:null, previewDate:null, imageQuality:'standard', fontSize:'standard', rememberEventFilter:true, lastEventFilter:'all' },
     settingsReturnScreen:'home',
     db:null
@@ -1636,13 +1637,12 @@
     app.innerHTML=`<main class="screen">${simpleTopbar('集計')}
       <div class="content summary-content">
         <span class="test-ribbon">TEST BUILD · v0.9 Stage 8 · OFFLINE</span>
-        <div class="test-note">端末に保存されている個人データから自動集計します。CD・トーク券は「参加確定」イベントの入力値、遠征費はキャンセル済みを除く入力済み旅程金額の合計です。</div>
+        <div class="test-note">端末に保存されている個人データから自動集計します。CD・トーク券は「参加確定」イベントの入力値を集計します。</div>
 
         <section class="summary-kpi-grid">
           <div class="card summary-kpi"><span>参加確定</span><strong>${d.statusCounts.confirmed}</strong><small>イベント</small></div>
           <div class="card summary-kpi"><span>CD</span><strong>${d.cdTotal.toLocaleString('ja-JP')}</strong><small>枚</small></div>
           <div class="card summary-kpi"><span>トーク券</span><strong>${d.talkTotal.toLocaleString('ja-JP')}</strong><small>枚</small></div>
-          <div class="card summary-kpi wide"><span>遠征費</span><strong>${fmtMoney(d.travelTotal)}</strong><small>入力済み金額合計</small></div>
         </section>
 
         <section class="card section-card">
@@ -1657,9 +1657,23 @@
           ${partRows.length?`<div class="summary-chip-list">${partRows.map(([label,total])=>`<div class="summary-chip"><span>${escapeHTML(label)}</span><strong>${total.toLocaleString('ja-JP')}枚</strong></div>`).join('')}</div>`:`<div class="summary-empty">トーク券の入力はまだありません</div>`}
         </section>
 
-        <section class="card section-card">
-          <div class="section-title-row"><div class="section-title">遠征費 内訳</div><span class="small muted">キャンセル除外</span></div>
-          ${travelRows.length?`<div class="summary-cost-list">${travelRows.map(([type,total])=>`<div class="summary-cost-row"><span>${travelIcon(type)} ${travelTypeLabel(type)}</span><strong>${fmtMoney(total)}</strong></div>`).join('')}${d.unlinkedTravel?`<div class="summary-cost-note">イベント未紐付け分 ${fmtMoney(d.unlinkedTravel)} を含みます</div>`:''}</div>`:`<div class="summary-empty">金額が入力された旅程はまだありません</div>`}
+        <section class="card section-card summary-money-card">
+          <div class="section-title-row">
+            <div><div class="section-title">お金</div><div class="summary-money-sub">旅程に入力した金額をまとめて表示</div></div>
+            <button class="summary-money-toggle" data-summary-money-toggle aria-expanded="${state.summaryMoneyVisible?'true':'false'}">${state.summaryMoneyVisible?'金額を隠す':'金額を見る'}</button>
+          </div>
+          ${state.summaryMoneyVisible?`
+            <div class="summary-money-total"><span>合計</span><strong>${fmtMoney(d.travelTotal)}</strong></div>
+            ${travelRows.length?`
+              <div class="summary-money-heading">項目別</div>
+              <div class="summary-cost-list">${travelRows.map(([type,total])=>`<div class="summary-cost-row"><span>${travelIcon(type)} ${travelTypeLabel(type)}</span><strong>${fmtMoney(total)}</strong></div>`).join('')}</div>
+              <div class="summary-money-heading">イベント別</div>
+              <div class="summary-money-event-list">
+                ${d.eventRows.filter(r=>r.eventTravel>0).map(r=>`<div class="summary-money-event-row"><span><strong>${fmtDate(r.ev.date).replace(/\(.+\)/,'')} ${escapeHTML(r.ev.prefecture)}</strong><small>${escapeHTML(r.ev.venue)}</small></span><b>${fmtMoney(r.eventTravel)}</b></div>`).join('') || '<div class="summary-empty">イベントに紐づいた金額はありません</div>'}
+              </div>
+              ${d.unlinkedTravel?`<div class="summary-cost-note">イベント未紐付け分 ${fmtMoney(d.unlinkedTravel)} を含みます</div>`:''}
+            `:`<div class="summary-empty">金額が入力された旅程はまだありません</div>`}
+          `:`<div class="summary-money-hidden">金額は非表示です</div>`}
         </section>
 
         <section class="card section-card">
@@ -1667,14 +1681,21 @@
           ${d.eventRows.length?`<div class="summary-event-list">${d.eventRows.map(r=>{
             const talkText=r.status==='confirmed'?`${r.eventTalk.toLocaleString('ja-JP')}枚`:'—';
             const cdText=r.status==='confirmed'?(r.eventCd===null?'未入力':`${r.eventCd.toLocaleString('ja-JP')}枚`):'—';
-            return `<button class="summary-event-row" data-open-event="${r.ev.id}"><span class="summary-event-main"><strong>${fmtDate(r.ev.date)} ${escapeHTML(r.ev.prefecture)}</strong><small>${escapeHTML(r.ev.venue)}</small><em>${statusText(r.status)}</em></span><span class="summary-event-values"><span>CD <b>${cdText}</b></span><span>トーク <b>${talkText}</b></span><span>遠征 <b>${r.eventTravel?fmtMoney(r.eventTravel):'—'}</b></span></span><span class="chev">›</span></button>`;
+            return `<button class="summary-event-row" data-open-event="${r.ev.id}"><span class="summary-event-main"><strong>${fmtDate(r.ev.date)} ${escapeHTML(r.ev.prefecture)}</strong><small>${escapeHTML(r.ev.venue)}</small><em>${statusText(r.status)}</em></span><span class="summary-event-values"><span>CD <b>${cdText}</b></span><span>トーク <b>${talkText}</b></span></span><span class="chev">›</span></button>`;
           }).join('')}</div>`:`<div class="summary-empty">集計対象の個人データはまだありません</div>`}
         </section>
 
-        <div class="summary-footnote">※ 未入力項目は推測せず集計しません。旅程の「金額」は入力された値をそのまま合計します。</div>
+        <div class="summary-footnote">※ 金額は「お金」を開いたときだけ表示します。未入力項目は推測せず、旅程に入力された金額だけを合計します。</div>
       </div>
     </main>${tabbar('summary')}`;
     bindCommon();
+    const moneyToggle=document.querySelector('[data-summary-money-toggle]');
+    if(moneyToggle){
+      moneyToggle.onclick=()=>{
+        state.summaryMoneyVisible=!state.summaryMoneyVisible;
+        renderSummary();
+      };
+    }
   }
 
   function renderPlaceholder(which){
