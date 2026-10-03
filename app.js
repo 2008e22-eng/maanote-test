@@ -155,7 +155,7 @@
     todoFilter:'open',
     todoSelection:false,
     selectedTodoIds:new Set(),
-    settings:{ mode:'personal_management', homeEventFilter:'all', headerImage:null, previewDate:null, imageQuality:'standard', fontSize:'xlarge', rememberEventFilter:true, lastEventFilter:'all' },
+    settings:{ mode:'personal_management', homeEventFilter:'all', headerImage:null, previewDate:null, imageQuality:'standard', fontSize:'standard', rememberEventFilter:true, lastEventFilter:'all' },
     settingsReturnScreen:'home',
     db:null
   };
@@ -281,7 +281,7 @@
     }
     const settings=await idbGetAll('settings');
     for(const row of settings) state.settings[row.key]=row.value;
-    applyFontSize(state.settings.fontSize||'xlarge');
+    applyFontSize(state.settings.fontSize||'standard');
     if(state.settings.rememberEventFilter && state.settings.lastEventFilter) state.eventFilter=state.settings.lastEventFilter;
 
     let todos=await idbGetAll('todos');
@@ -322,7 +322,7 @@
 
   function applyFontSize(size){
     const allowed=['small','standard','large','xlarge'];
-    const value=allowed.includes(size)?size:'xlarge';
+    const value=allowed.includes(size)?size:'standard';
     document.documentElement.dataset.fontSize=value;
   }
 
@@ -1634,7 +1634,7 @@
 
         <div class="settings-section-title">表示</div>
         <section class="card settings-card">
-          <label class="settings-field"><span><strong>文字サイズ</strong><small>この端末だけに保存されます</small></span><select class="settings-select" data-setting-font-size><option value="small" ${state.settings.fontSize==='small'?'selected':''}>小さめ 90%</option><option value="standard" ${state.settings.fontSize==='standard'?'selected':''}>標準 100%</option><option value="large" ${state.settings.fontSize==='large'?'selected':''}>大きめ 120%</option><option value="xlarge" ${!state.settings.fontSize||state.settings.fontSize==='xlarge'?'selected':''}>特大 140%（初期値）</option></select></label>
+          <label class="settings-field"><span><strong>文字サイズ</strong><small>この端末だけに保存されます</small></span><select class="settings-select" data-setting-font-size><option value="small" ${state.settings.fontSize==='small'?'selected':''}>小さめ 90%</option><option value="standard" ${!state.settings.fontSize||state.settings.fontSize==='standard'?'selected':''}>標準 100%</option><option value="large" ${state.settings.fontSize==='large'?'selected':''}>大きめ 120%</option><option value="xlarge" ${state.settings.fontSize==='xlarge'?'selected':''}>特大 140%</option></select></label>
           <div class="font-size-preview"><small>表示例</small><strong>11/2(月) 千葉　イオンモール幕張新都心</strong></div>
         </section>
 
