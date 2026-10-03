@@ -1,0 +1,9 @@
+{
+  "version": "0.9-rc2",
+  "build": "2026-10-03.4-github-pages",
+  "channel": "test",
+  "releaseCandidate": true,
+  "hostingIndependent": true,
+  "notes": "GitHub PagesのプロジェクトURL（/リポジトリ名/）に対応したRC2。個人データは端末内IndexedDBへ保存します。",
+  "githubPagesCompatible": true
+}
