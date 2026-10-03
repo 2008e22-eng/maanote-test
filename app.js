@@ -1,8 +1,8 @@
 (() => {
   'use strict';
 
-  const APP_VERSION = '0.9-stage9-rc1.1';
-  const APP_VERSION_LABEL = 'v0.9 Stage 9 RC1.1';
+  const APP_VERSION = '0.9-stage9-rc1.2';
+  const APP_VERSION_LABEL = 'v0.9 Stage 9 RC1.2';
   const ACCENT = '#47B0A0';
   const OFFICIAL_URL = 'https://www.jp-r.co.jp/masaki_satou/event/006feb74b8da455d4d8e8d30b5f54904965d113acebc5cffe84c79f8d2b7cc76/';
 
@@ -283,28 +283,26 @@
       const personalBackup=parseEmergencyBackup(EMERGENCY_PERSONAL_KEY);
       if(personalBackup?.stores){
         const personalStores=['userEventPlans','settings','todos','personalSchedules','travelBookings','setlists','talkMemos','migrationInfo','legacyData'];
-        const current=await Promise.all(personalStores.map(store=>idbGetAll(store)));
-        const currentCompletelyEmpty=current.every(rows=>!rows.length);
-        const backupHasData=personalStores.some(store=>(personalBackup.stores[store]||[]).length);
-        if(currentCompletelyEmpty && backupHasData){
-          for(const store of personalStores){
-            for(const row of personalBackup.stores[store]||[]) await idbPut(store,structuredClone(row),{skipEmergencyBackup:true});
+        for(const store of personalStores){
+          const currentRows=await idbGetAll(store);
+          const backupRows=personalBackup.stores[store]||[];
+          if(!currentRows.length && backupRows.length){
+            for(const row of backupRows) await idbPut(store,structuredClone(row),{skipEmergencyBackup:true});
+            restored=true;
           }
-          restored=true;
         }
       }
 
       const commonBackup=parseEmergencyBackup(EMERGENCY_COMMON_KEY);
       if(commonBackup?.stores){
         const commonStores=['commonEvents','commonOtherItems','commonMeta','commonHistory','adminDrafts'];
-        const current=await Promise.all(commonStores.map(store=>idbGetAll(store)));
-        const currentCompletelyEmpty=current.every(rows=>!rows.length);
-        const backupHasData=commonStores.some(store=>(commonBackup.stores[store]||[]).length);
-        if(currentCompletelyEmpty && backupHasData){
-          for(const store of commonStores){
-            for(const row of commonBackup.stores[store]||[]) await idbPut(store,structuredClone(row),{skipEmergencyBackup:true});
+        for(const store of commonStores){
+          const currentRows=await idbGetAll(store);
+          const backupRows=commonBackup.stores[store]||[];
+          if(!currentRows.length && backupRows.length){
+            for(const row of backupRows) await idbPut(store,structuredClone(row),{skipEmergencyBackup:true});
+            restored=true;
           }
-          restored=true;
         }
       }
     }catch(err){
@@ -563,10 +561,33 @@
   }
   function dayDiff(a,b){ return Math.round((dateObj(a)-new Date(b.getFullYear(),b.getMonth(),b.getDate()))/86400000); }
 
+  function userPlanForEvent(ev){
+    if(!ev) return {};
+    const direct=state.userPlans[ev.id];
+    if(direct && !direct.deleted) return direct;
+
+    // If the same official event was recreated in the admin screen after storage loss,
+    // its random id may differ from the id stored in personal data.
+    // For release events, safely fall back to the original seeded event on the same date/prefecture.
+    const seed=seededOfficialEvents.find(s=>s.date===ev.date && s.prefecture===ev.prefecture);
+    if(seed){
+      const seededPlan=state.userPlans[seed.id];
+      if(seededPlan && !seededPlan.deleted) return seededPlan;
+    }
+
+    // Legacy release ids include YYYYMMDD. Use this only when there is one unambiguous match.
+    const token=String(ev.date||'').replace(/-/g,'');
+    if(token){
+      const matches=Object.values(state.userPlans).filter(p=>!p.deleted && String(p.eventId||'').includes(token));
+      if(matches.length===1) return matches[0];
+    }
+    return {};
+  }
+
   function filteredEvents(){
     let arr=[...officialEvents];
     const f=state.eventFilter;
-    if(f!=='all') arr=arr.filter(ev=>(state.userPlans[ev.id]?.participationStatus||'unset')===f);
+    if(f!=='all') arr=arr.filter(ev=>(userPlanForEvent(ev).participationStatus||'unset')===f);
     arr.sort((a,b)=>a.date.localeCompare(b.date));
     return arr;
   }
@@ -586,14 +607,9 @@
   }
 
   function homePresentationMode(ev){
-    const mode=homeMode(ev);
-    // TEST/display mapping:
-    // actual date => same contents as the previous-day display
-    // previous day => unchanged
-    // event day ("本日") => the former actual-date/normal display
-    if(!state.settings.previewDate) return 'tomorrow';
-    if(mode==='today') return 'normal';
-    return mode;
+    // Display mode must match the app's effective date exactly.
+    // previewDate is only a TEST override for currentDate(); it must not remap TODAY/NEXT.
+    return homeMode(ev);
   }
 
   function nextItem(ev){
@@ -632,8 +648,10 @@
 
   function renderHome(){
     const candidates=homeEventCandidates();
-    const ev=candidates[0]||officialEvents[0];
-    const plan=state.userPlans[ev.id]||{};
+    const effectiveToday=fmtISODate(currentDate());
+    const todayEvents=officialEvents.filter(e=>e.date===effectiveToday);
+    const ev=(todayEvents.find(e=>userPlanForEvent(e).participationStatus==='confirmed')||todayEvents[0]||candidates[0]||officialEvents[0]);
+    const plan=userPlanForEvent(ev);
     const mode=homePresentationMode(ev);
     const next=nextItem(ev);
     const headerStyle=state.settings.headerImage?`style="background-image:url('${state.settings.headerImage.replace(/'/g,"%27")}')"`:'';
@@ -693,7 +711,7 @@
       <button class="map-row" data-map="${escapeAttr(ev.venue+' '+stationText(ev))}">${icon('pin')}<span>${stationText(ev)}</span><span class="chev">›</span></button>
       ${next && (mode==='today'||mode==='tomorrow')?`<div class="next-panel"><div class="next-label">NEXT</div><div class="next-line"><span class="next-time">${next.time}</span><span class="next-title">${next.title}</span></div></div>`:''}
       <div class="info-strip"><span>販売 <strong>${ev.salesStart||'未発表'}</strong></span><span>送料 <strong>${shippingText(ev.shipping)}</strong></span><span>上限 <strong>${limitText}</strong></span></div>
-      ${management && confirmed && parts.length ? userCompact(plan,parts) : parts.length?`<div class="small muted part-summary">${parts.map(p=>`${p.label} ${p.startTime}`).join(' ｜ ')}</div>`:`<div class="small muted part-summary">各部詳細：未発表</div>`}
+      ${management && (confirmed || mode==='today') && parts.length ? userCompact(plan,parts) : parts.length?`<div class="small muted part-summary">${parts.map(p=>`${p.label} ${p.startTime}`).join(' ｜ ')}</div>`:`<div class="small muted part-summary">各部詳細：未発表</div>`}
       ${management?`<div class="home-shortcuts"><button class="shortcut-btn" data-open-setlist="${ev.id}">${icon('list')} セトリ${setlistFilledCount(ev.id)?` ${setlistFilledCount(ev.id)}部`:''}</button><button class="shortcut-btn" data-home-travel="${ev.id}">${icon('luggage')} 旅程</button></div>`:''}
     </section>`;
   }
@@ -740,7 +758,7 @@
   }
 
   function eventCard(ev){
-    const plan=state.userPlans[ev.id]||{};
+    const plan=userPlanForEvent(ev);
     const confirmed=plan.participationStatus==='confirmed';
     return `<button class="event-card ${confirmed?'confirmed':''}" data-open-event="${ev.id}">
       <div class="event-card-top"><div class="event-card-date">${fmtDate(ev.date)}　${ev.prefecture} ${commonStatusBadge(ev.status)}</div>${state.settings.mode!=='view_only'?`<span class="status-badge ${plan.participationStatus||'unset'}">${statusText(plan.participationStatus)}</span>`:''}</div>
@@ -754,7 +772,7 @@
 
   function renderDetail(){
     const ev=officialEvents.find(x=>x.id===state.detailEventId) || officialEvents[0];
-    const plan=state.userPlans[ev.id]||{participationStatus:'unset',cdQuantity:null,parts:{}};
+    const plan=userPlanForEvent(ev);
     app.innerHTML=`<main class="screen">
       <header class="topbar"><div class="topbar-inner"><button data-action="close-detail" aria-label="閉じる">${icon('close')}</button><div class="topbar-title">イベント詳細</div><button data-action="edit-day" aria-label="当日情報を編集">${icon('edit')}</button></div></header>
       <div class="detail-wrap">
@@ -1676,7 +1694,7 @@
     const eventRows=[];
 
     for(const ev of officialEvents){
-      const plan=state.userPlans[ev.id] || {participationStatus:'unset',parts:{}};
+      const plan=userPlanForEvent(ev);
       const status=plan.participationStatus||'unset';
       statusCounts[status]=(statusCounts[status]||0)+1;
 
@@ -1734,7 +1752,7 @@
 
     app.innerHTML=`<main class="screen">${simpleTopbar('集計')}
       <div class="content summary-content">
-        <span class="test-ribbon">TEST BUILD · v0.9 Stage 9 RC1.1 · OFFLINE</span>
+        <span class="test-ribbon">TEST BUILD · v0.9 Stage 9 RC1.2 · OFFLINE</span>
         <div class="test-note">端末に保存されている個人データから自動集計します。CD・トーク券は「参加確定」イベントの入力値を集計します。</div>
 
         <section class="summary-kpi-grid">
@@ -1821,7 +1839,7 @@
     document.querySelectorAll('[data-open-event]').forEach(el=>el.onclick=(e)=>{
       if(e.target.closest('[data-map],[data-placeholder]')) return;
       if(state.screen==='events') state.lastEventScroll=window.scrollY;
-      state.detailEventId=el.dataset.openEvent; state.screen='detail'; state.detailTab=(homeMode(officialEvents.find(x=>x.id===state.detailEventId))==='today' && state.userPlans[state.detailEventId]?.participationStatus==='confirmed')?'day':'official'; renderDetail(); window.scrollTo(0,0);
+      state.detailEventId=el.dataset.openEvent; state.screen='detail'; const openedEv=officialEvents.find(x=>x.id===state.detailEventId); state.detailTab=(homeMode(openedEv)==='today' && userPlanForEvent(openedEv).participationStatus==='confirmed')?'day':'official'; renderDetail(); window.scrollTo(0,0);
     });
     document.querySelectorAll('[data-map]').forEach(el=>el.onclick=(e)=>{
       e.stopPropagation();

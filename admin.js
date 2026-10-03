@@ -1,6 +1,6 @@
 (() => {
   'use strict';
-  const DB='MaaNoteDB', DB_VERSION=7, APP_VERSION='0.9-stage9-rc1.1', EMERGENCY_COMMON_KEY='MaaNoteEmergencyCommonV1';
+  const DB='MaaNoteDB', DB_VERSION=7, APP_VERSION='0.9-stage9-rc1.2', EMERGENCY_COMMON_KEY='MaaNoteEmergencyCommonV1';
   const app=document.getElementById('adminApp'), sheet=document.getElementById('adminSheet'), toast=document.getElementById('adminToast');
   const state={db:null,tab:'release',events:[],other:[],history:[],drafts:[],meta:{version:0},draftTimer:null,backupTimer:null,backupSuspended:false,recovered:false};
   const CATEGORIES={live:'LIVE',fc:'FC EVENT',radio:'RADIO',limista:'LIMISTA',tv_web:'TV・WEB',release:'RELEASE',other:'OTHER'};
@@ -15,7 +15,7 @@
   function all(store){return new Promise((resolve,reject)=>{const r=state.db.transaction(store,'readonly').objectStore(store).getAll();r.onsuccess=()=>resolve(r.result||[]);r.onerror=()=>reject(r.error)})}
   function scheduleAdminBackup(){if(state.backupSuspended||!state.db)return;clearTimeout(state.backupTimer);state.backupTimer=setTimeout(writeAdminEmergencyBackup,400)}
   async function writeAdminEmergencyBackup(){if(state.backupSuspended||!state.db)return;try{const stores={};for(const n of ['commonEvents','commonOtherItems','commonMeta','commonHistory','adminDrafts'])stores[n]=await all(n);localStorage.setItem(EMERGENCY_COMMON_KEY,JSON.stringify({format:'MaaNote-emergency-backup',version:1,scope:'common',appVersion:APP_VERSION,updatedAt:now(),stores}))}catch(e){console.warn('admin emergency backup failed',e)}}
-  async function recoverAdminEmergencyBackup(){let data=null;try{data=JSON.parse(localStorage.getItem(EMERGENCY_COMMON_KEY)||'null')}catch(e){}if(!data?.stores||data.format!=='MaaNote-emergency-backup')return false;const names=['commonEvents','commonOtherItems','commonMeta','commonHistory','adminDrafts'];const current=await Promise.all(names.map(all));if(!current.every(x=>!x.length))return false;if(!names.some(n=>(data.stores[n]||[]).length))return false;state.backupSuspended=true;try{for(const n of names)for(const row of data.stores[n]||[])await put(n,structuredClone(row),true);state.recovered=true;return true}finally{state.backupSuspended=false}}
+  async function recoverAdminEmergencyBackup(){let data=null;try{data=JSON.parse(localStorage.getItem(EMERGENCY_COMMON_KEY)||'null')}catch(e){}if(!data?.stores||data.format!=='MaaNote-emergency-backup')return false;const names=['commonEvents','commonOtherItems','commonMeta','commonHistory','adminDrafts'];let restored=false;state.backupSuspended=true;try{for(const n of names){const current=await all(n);const backup=data.stores[n]||[];if(!current.length&&backup.length){for(const row of backup)await put(n,structuredClone(row),true);restored=true}}state.recovered=restored;return restored}finally{state.backupSuspended=false}}
   function put(store,v,skipBackup=false){return new Promise((resolve,reject)=>{const tx=state.db.transaction(store,'readwrite');tx.objectStore(store).put(v);tx.oncomplete=()=>{if(!skipBackup)scheduleAdminBackup();resolve()};tx.onerror=()=>reject(tx.error)})}
   function del(store,key){return new Promise((resolve,reject)=>{const tx=state.db.transaction(store,'readwrite');tx.objectStore(store).delete(key);tx.oncomplete=()=>{scheduleAdminBackup();resolve()};tx.onerror=()=>reject(tx.error)})}
 
@@ -38,7 +38,7 @@
     const m=(await all('commonMeta')).find(x=>x.key==='publish'); state.meta=m||{version:0};
   }
 
-  function shell(content){return `<main class="shell"><header class="top"><div><div class="brand">MaaNote Admin</div><div class="sub">管理者用 · Stage 9 RC1.1 TEST</div></div><a class="app-link" href="./index.html">利用者画面へ</a></header><div class="warning"><strong>TEST用の管理者画面です。</strong><br>このStageでは同じ端末の「管理者配信データ領域」へ公開をシミュレーションします。ユーザー個人データにはアクセスしません。本番運用では、公開APIを<strong>サーバー側認証</strong>で保護してから使用します。URLを隠すだけの認証にはしません。</div><nav class="tabs"><button data-tab="release" class="${state.tab==='release'?'active':''}">3rd Single</button><button data-tab="other" class="${state.tab==='other'?'active':''}">その他</button><button data-tab="history" class="${state.tab==='history'?'active':''}">履歴</button></nav><div class="content">${content}</div></main>`}
+  function shell(content){return `<main class="shell"><header class="top"><div><div class="brand">MaaNote Admin</div><div class="sub">管理者用 · Stage 9 RC1.2 TEST</div></div><a class="app-link" href="./index.html">利用者画面へ</a></header><div class="warning"><strong>TEST用の管理者画面です。</strong><br>このStageでは同じ端末の「管理者配信データ領域」へ公開をシミュレーションします。ユーザー個人データにはアクセスしません。本番運用では、公開APIを<strong>サーバー側認証</strong>で保護してから使用します。URLを隠すだけの認証にはしません。</div><nav class="tabs"><button data-tab="release" class="${state.tab==='release'?'active':''}">3rd Single</button><button data-tab="other" class="${state.tab==='other'?'active':''}">その他</button><button data-tab="history" class="${state.tab==='history'?'active':''}">履歴</button></nav><div class="content">${content}</div></main>`}
 
   function render(){
     if(state.tab==='release') app.innerHTML=shell(releaseList());
@@ -121,6 +121,15 @@
   async function publish(type,data){
     if(type==='event'&&(!data.date||!data.venue)){showToast('開催日と会場名は必須です');return}
     if(type==='other'&&!data.title){showToast('タイトルは必須です');return}
+
+    // If an event was recreated after browser storage loss, keep the stable existing id
+    // when date + prefecture + venue are the same. This preserves personal-data linkage.
+    if(type==='event'){
+      const norm=s=>String(s||'').replace(/[\s　・]/g,'').toLowerCase();
+      const same=state.events.find(x=>x.id!==data.id && x.date===data.date && x.prefecture===data.prefecture && norm(x.venue)===norm(data.venue));
+      if(same) data={...data,id:same.id};
+    }
+
     if(!confirm('この内容を管理者配信データとして公開しますか？\nTESTでは同じ端末の利用者画面へ反映されます。'))return;
     const store=type==='event'?'commonEvents':'commonOtherItems'; const list=type==='event'?state.events:state.other; const before=list.find(x=>x.id===data.id)||null;
     const meta=(await all('commonMeta')).find(x=>x.key==='publish')||{version:0}; const version=Number(meta.version||0)+1; const publishedAt=now();
