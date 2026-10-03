@@ -155,7 +155,7 @@
     todoFilter:'open',
     todoSelection:false,
     selectedTodoIds:new Set(),
-    settings:{ mode:'personal_management', homeEventFilter:'all', headerImage:null, previewDate:null, imageQuality:'standard', fontSize:'xlarge', rememberEventFilter:true, lastEventFilter:'all' },
+    settings:{ mode:'personal_management', homeEventFilter:'all', headerImage:null, previewDate:null, imageQuality:'standard', fontSize:'standard', rememberEventFilter:true, lastEventFilter:'all' },
     settingsReturnScreen:'home',
     db:null
   };
@@ -281,7 +281,7 @@
     }
     const settings=await idbGetAll('settings');
     for(const row of settings) state.settings[row.key]=row.value;
-    applyFontSize(state.settings.fontSize||'xlarge');
+    applyFontSize(state.settings.fontSize||'standard');
     if(state.settings.rememberEventFilter && state.settings.lastEventFilter) state.eventFilter=state.settings.lastEventFilter;
 
     let todos=await idbGetAll('todos');
@@ -322,7 +322,7 @@
 
   function applyFontSize(size){
     const allowed=['small','standard','large','xlarge'];
-    const value=allowed.includes(size)?size:'xlarge';
+    const value=allowed.includes(size)?size:'standard';
     document.documentElement.dataset.fontSize=value;
   }
 
@@ -1193,7 +1193,7 @@
 
   function renderTravel(){
     if(state.settings.mode==='view_only'){
-      app.innerHTML=`<main class="screen">${simpleTopbar('旅程')}<div class="content"><div class="card placeholder-screen"><div><strong>見るだけモード</strong>旅程は個人データのため非表示です。設定から「自分の予定も管理する」に切り替えると利用できます。</div></div></div></main>${tabbar('travel')}`;
+      app.innerHTML=`<main class="screen travel-screen">${simpleTopbar('旅程')}<div class="content"><div class="card placeholder-screen"><div><strong>見るだけモード</strong>旅程は個人データのため非表示です。設定から「自分の予定も管理する」に切り替えると利用できます。</div></div></div></main>${tabbar('travel')}`;
       bindCommon(); return;
     }
     let list=state.travelBookings.filter(x=>!x.deleted);
@@ -1254,7 +1254,7 @@
       <input type="file" accept="image/*" multiple hidden data-travel-first-file>
       <div class="travel-or"><span>または</span></div>
       <button class="sheet-card-btn primary" style="width:100%" data-travel-manual>画像なしで手入力</button>
-      <div class="form-help" style="margin-top:10px">画像を選んだだけでは外部AIへ送信しません。AI自動入力は後のバージョンで追加予定です。</div>`);
+      <div class="form-help" style="margin-top:10px">画像を選んだだけでは外部AIへ送信しません。AI自動入力は後のバージョンで追加予定です。</div>`,'travel-sheet');
     const file=sheetRoot.querySelector('[data-travel-first-file]');
     sheetRoot.querySelector('[data-travel-pick-first]').onclick=()=>file.click();
     file.onchange=async()=>{
@@ -1273,7 +1273,7 @@
       <div class="form-grid-2"><div class="form-group"><label class="form-label">種類（任意）</label><select class="form-select" data-image-only-type><option value="unclassified">未整理</option><option value="train">新幹線・電車</option><option value="flight">飛行機</option><option value="bus">バス</option><option value="car">車・レンタカー</option><option value="hotel">宿泊</option><option value="other">その他</option></select></div><div class="form-group"><label class="form-label">行き / 帰り（任意）</label><select class="form-select" data-image-only-dir><option value="none">未設定</option><option value="outbound">行き</option><option value="stay">宿泊</option><option value="return">帰り</option></select></div></div>
       <div class="sheet-actions-grid"><button class="sheet-card-btn primary" data-image-only-save>このまま保存</button><button class="sheet-card-btn primary" data-image-edit>内容も入力</button></div>
       <button class="sheet-card-btn travel-ai-disabled" disabled>画像から自動入力（v1.2予定）</button>
-      <div class="form-help">「このまま保存」なら、画像をそのまま旅程として端末保存します。あとから内容を追記できます。</div>`);
+      <div class="form-help">「このまま保存」なら、画像をそのまま旅程として端末保存します。あとから内容を追記できます。</div>`,'travel-sheet');
     const make=()=>({eventId,type:sheetRoot.querySelector('[data-image-only-type]').value,direction:sheetRoot.querySelector('[data-image-only-dir]').value,title:'予約画像',date:ev?.date||null,images});
     sheetRoot.querySelector('[data-image-only-save]').onclick=async()=>{await saveTravelBooking(make());closeSheet();};
     sheetRoot.querySelector('[data-image-edit]').onclick=async()=>{const row=await saveTravelBooking(make(),false);openTravelEditSheet(row.id);};
@@ -1303,7 +1303,7 @@
       <div class="form-group"><label class="form-label">メモ</label><textarea class="form-input form-textarea example-input" data-example="例：東京駅で○○ちゃんと合流" placeholder="例：東京駅で○○ちゃんと合流" data-travel-notes>${escapeHTML(item.notes||'')}</textarea></div>
       <div class="form-group"><div class="section-title-row"><label class="form-label" style="margin:0">予約画像</label><button class="mini-link" data-add-travel-images>＋画像</button></div>${renderTravelImages(item)}<input type="file" accept="image/*" multiple hidden data-travel-image-file><div class="form-help">画像は複数保存できます。画像を削除しても、入力済みの旅程情報は残ります。</div></div>
       ${existing?'<button class="sheet-delete-btn" data-delete-travel>この旅程を削除</button>':''}
-      <div class="form-help">入力内容は自動保存です。予約画像は現在端末内に保存し、外部AIには送信しません。</div>`);
+      <div class="form-help">入力内容は自動保存です。予約画像は現在端末内に保存し、外部AIには送信しません。</div>`,'travel-sheet');
     activateExampleInputs(sheetRoot);
     updateTravelFormVisibility();
 
@@ -1383,7 +1383,7 @@
 
   function openTravelImageViewer(bookingId,imageId){
     const row=state.travelBookings.find(x=>x.id===bookingId); const img=row?.images?.find(x=>x.id===imageId); if(!img)return;
-    showSheet(`<div class="sheet-head"><div class="sheet-title">予約画像</div><button class="text-btn" data-image-view-close>戻る</button></div><div class="travel-image-viewer"><img src="${img.dataUrl}" alt="予約画像"></div><div class="form-help">画像は端末保存データです。</div>`);
+    showSheet(`<div class="sheet-head"><div class="sheet-title">予約画像</div><button class="text-btn" data-image-view-close>戻る</button></div><div class="travel-image-viewer"><img src="${img.dataUrl}" alt="予約画像"></div><div class="form-help">画像は端末保存データです。</div>`,'travel-sheet');
     sheetRoot.querySelector('[data-image-view-close]').onclick=()=>openTravelEditSheet(bookingId);
   }
 
@@ -1744,7 +1744,7 @@
 
         <div class="settings-section-title">表示</div>
         <section class="card settings-card">
-          <label class="settings-field"><span><strong>文字サイズ</strong><small>この端末だけに保存されます</small></span><select class="settings-select" data-setting-font-size><option value="small" ${state.settings.fontSize==='small'?'selected':''}>小さめ 90%</option><option value="standard" ${state.settings.fontSize==='standard'?'selected':''}>標準 100%</option><option value="large" ${state.settings.fontSize==='large'?'selected':''}>大きめ 120%</option><option value="xlarge" ${!state.settings.fontSize||state.settings.fontSize==='xlarge'?'selected':''}>特大 140%（初期値）</option></select></label>
+          <label class="settings-field"><span><strong>文字サイズ</strong><small>この端末だけに保存されます</small></span><select class="settings-select" data-setting-font-size><option value="small" ${state.settings.fontSize==='small'?'selected':''}>小さめ 90%</option><option value="standard" ${!state.settings.fontSize||state.settings.fontSize==='standard'?'selected':''}>標準 100%（初期値）</option><option value="large" ${state.settings.fontSize==='large'?'selected':''}>大きめ 120%</option><option value="xlarge" ${state.settings.fontSize==='xlarge'?'selected':''}>特大 140%</option></select></label>
           <div class="font-size-preview"><small>表示例</small><strong>11/2(月) 千葉　イオンモール幕張新都心</strong></div>
         </section>
 
@@ -1850,8 +1850,9 @@
     sheetRoot.querySelector('[data-quick-talk]').onclick=()=>openTalkMemoSheet(ev.id);
   }
 
-  function showSheet(html){
-    sheetRoot.innerHTML=`<div class="sheet-backdrop"><div class="sheet"><div class="sheet-grabber"></div>${html}</div></div>`;
+  function showSheet(html,sheetClass=''){
+    const extraClass=sheetClass?` ${sheetClass}`:'';
+    sheetRoot.innerHTML=`<div class="sheet-backdrop"><div class="sheet${extraClass}"><div class="sheet-grabber"></div>${html}</div></div>`;
     const backdrop=sheetRoot.querySelector('.sheet-backdrop');
     backdrop.addEventListener('click',e=>{if(e.target===backdrop)closeSheet();});
     sheetRoot.querySelectorAll('[data-sheet-close]').forEach(b=>b.onclick=closeSheet);
