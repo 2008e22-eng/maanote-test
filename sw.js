@@ -1,9 +1,9 @@
-const CACHE = 'maanote-v0.9-stage8-calendar-fitall-20261004';
+const CACHE = 'maanote-v0.9-stage9-rc1-20261004';
 const APP_SHELL = [
   './',
   './index.html',
-  './styles.css?v=0.9-stage8-calendar-fitall',
-  './app.js?v=0.9-stage8-calendar-fitall',
+  './styles.css?v=0.9-stage9-rc1',
+  './app.js?v=0.9-stage9-rc1',
   './manifest.webmanifest',
   './icon.svg',
   './icon-192.png',
@@ -11,12 +11,12 @@ const APP_SHELL = [
   './apple-touch-icon.png',
   './version.json',
   './admin.html',
-  './admin.css?v=0.9-stage8-calendar-fitall',
-  './admin.js?v=0.9-stage8-calendar-fitall',
+  './admin.css?v=0.9-stage9-rc1',
+  './admin.js?v=0.9-stage9-rc1',
   './common-seed.json',
   './migrate-v96.html',
-  './migrate-v96.css?v=0.9-stage8-calendar-fitall',
-  './migrate-v96.js?v=0.9-stage8-calendar-fitall'
+  './migrate-v96.css?v=0.9-stage9-rc1',
+  './migrate-v96.js?v=0.9-stage9-rc1'
 ];
 
 self.addEventListener('install', event => {

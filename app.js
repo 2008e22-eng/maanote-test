@@ -1,6 +1,8 @@
 (() => {
   'use strict';
 
+  const APP_VERSION = '0.9-stage9-rc1';
+  const APP_VERSION_LABEL = 'v0.9 Stage 9 RC1';
   const ACCENT = '#47B0A0';
   const OFFICIAL_URL = 'https://www.jp-r.co.jp/masaki_satou/event/006feb74b8da455d4d8e8d30b5f54904965d113acebc5cffe84c79f8d2b7cc76/';
 
@@ -247,11 +249,7 @@
     }
     officialEvents=events.filter(x=>x.status!=='hidden').sort((a,b)=>String(a.date||'9999').localeCompare(String(b.date||'9999')));
 
-    let other=await idbGetAll('commonOtherItems');
-    if(!other.length){
-      for(const row of initialOtherItems) await idbPut('commonOtherItems',structuredClone(row));
-      other=structuredClone(initialOtherItems);
-    }
+    const other=await idbGetAll('commonOtherItems');
     state.otherItems=other.filter(x=>x.status!=='hidden').sort((a,b)=>String(a.date||'9999').localeCompare(String(b.date||'9999')));
 
     const metaRows=await idbGetAll('commonMeta');
@@ -274,36 +272,19 @@
     state.db = await openDB();
     await loadCommonData();
     const plans=await idbGetAll('userEventPlans');
-    if(!plans.length){
-      for(const p of Object.values(initialUserPlans)) await idbPut('userEventPlans',p);
-      state.userPlans=structuredClone(initialUserPlans);
-    } else {
-      state.userPlans=Object.fromEntries(plans.filter(p=>!p.deleted).map(p=>[p.eventId,p]));
-    }
+    state.userPlans=Object.fromEntries(plans.filter(p=>!p.deleted).map(p=>[p.eventId,p]));
     const settings=await idbGetAll('settings');
     for(const row of settings) state.settings[row.key]=row.value;
     applyFontSize(state.settings.fontSize||'standard');
     if(state.settings.rememberEventFilter && state.settings.lastEventFilter) state.eventFilter=state.settings.lastEventFilter;
 
-    let todos=await idbGetAll('todos');
-    if(!todos.length){
-      for(const t of initialTodos) await idbPut('todos',t);
-      todos=structuredClone(initialTodos);
-    }
+    const todos=await idbGetAll('todos');
     state.todos=todos.filter(t=>!t.deleted);
 
-    let schedules=await idbGetAll('personalSchedules');
-    if(!schedules.length){
-      for(const row of initialPersonalSchedules) await idbPut('personalSchedules',row);
-      schedules=structuredClone(initialPersonalSchedules);
-    }
+    const schedules=await idbGetAll('personalSchedules');
     state.personalSchedules=schedules.filter(x=>!x.deleted);
 
-    let travel=await idbGetAll('travelBookings');
-    if(!travel.length){
-      for(const row of initialTravelBookings) await idbPut('travelBookings',row);
-      travel=structuredClone(initialTravelBookings);
-    }
+    const travel=await idbGetAll('travelBookings');
     state.travelBookings=travel.filter(x=>!x.deleted);
 
     let setlists=await idbGetAll('setlists');
@@ -1636,7 +1617,7 @@
 
     app.innerHTML=`<main class="screen">${simpleTopbar('集計')}
       <div class="content summary-content">
-        <span class="test-ribbon">TEST BUILD · v0.9 Stage 8 · OFFLINE</span>
+        <span class="test-ribbon">TEST BUILD · v0.9 Stage 9 RC1 · OFFLINE</span>
         <div class="test-note">端末に保存されている個人データから自動集計します。CD・トーク券は「参加確定」イベントの入力値を集計します。</div>
 
         <section class="summary-kpi-grid">
@@ -1815,7 +1796,7 @@
 
         <div class="settings-section-title">アプリ情報</div>
         <section class="card settings-card">
-          <div class="settings-status-row"><span><strong>MaaNote</strong><small>3rd Single イベントまとめ · 非公式</small></span><b>v0.9 Stage 8</b></div>
+          <div class="settings-status-row"><span><strong>MaaNote</strong><small>3rd Single イベントまとめ · 非公式</small></span><b>${APP_VERSION_LABEL}</b></div>
           <button class="settings-nav-row" data-check-update><span><strong>更新を確認</strong><small>アプリ本体の更新のみ確認します</small></span><span class="chev">›</span></button>
         </section>
         <div class="settings-footnote">設定変更は自動保存されます。アプリ本体の更新やキャッシュ更新で、IndexedDBの個人データを削除しない設計です。</div>
@@ -1847,7 +1828,7 @@
     const legacyData=includeImages?rawLegacyData:rawLegacyData.map(x=>({...x,orphanBookingImages:(x.orphanBookingImages||[]).map(img=>({...img,dataUrl:null}))}));
     const migrationInfo=await idbGetAll('migrationInfo').catch(()=>[]);
     const payload={
-      format:'MaaNote-export',version:1,appVersion:'0.9-stage8-layoutfix2',exportedAt:new Date().toISOString(),includeImages,
+      format:'MaaNote-export',version:1,appVersion:APP_VERSION,exportedAt:new Date().toISOString(),includeImages,
       userEventPlans:Object.values(state.userPlans).filter(x=>!x.deleted),todos:state.todos.filter(x=>!x.deleted),personalSchedules:state.personalSchedules.filter(x=>!x.deleted),travelBookings:travel,setlists:state.setlists.filter(x=>!x.deleted),talkMemos:state.talkMemos.filter(x=>!x.deleted),settings,legacyData,migrationInfo
     };
     const blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'}); const url=URL.createObjectURL(blob); const a=document.createElement('a');
@@ -1868,7 +1849,7 @@
     if(!navigator.onLine){showToast('更新確認はオンライン時に利用できます');return;}
     try{
       const res=await fetch(`./version.json?t=${Date.now()}`,{cache:'no-store'}); if(!res.ok)throw new Error('version'); const data=await res.json();
-      if(data.version && data.version!=='0.9-stage8-layoutfix2') showToast(`新しい版があります：${data.version}`); else showToast('✓ このTEST版は最新です');
+      if(data.version && data.version!==APP_VERSION) showToast(`新しい版があります：${data.version}`); else showToast('✓ このTEST版は最新です');
       if('serviceWorker' in navigator){const reg=await navigator.serviceWorker.getRegistration();await reg?.update();}
     }catch(err){showToast('更新を確認できませんでした');}
   }
