@@ -1,9 +1,9 @@
-const CACHE = 'maanote-v0.9-stage8-cdinput-calendarplace-20261004';
+const CACHE = 'maanote-v0.9-stage8-noto-sans-jp-20261004';
 const APP_SHELL = [
   './',
   './index.html',
-  './styles.css?v=0.9-stage8-cdinput-calendarplace',
-  './app.js?v=0.9-stage8-cdinput-calendarplace',
+  './styles.css?v=0.9-stage8-noto-sans-jp',
+  './app.js?v=0.9-stage8-noto-sans-jp',
   './manifest.webmanifest',
   './icon.svg',
   './icon-192.png',
@@ -11,12 +11,12 @@ const APP_SHELL = [
   './apple-touch-icon.png',
   './version.json',
   './admin.html',
-  './admin.css?v=0.9-stage8-cdinput-calendarplace',
-  './admin.js?v=0.9-stage8-cdinput-calendarplace',
+  './admin.css?v=0.9-stage8-noto-sans-jp',
+  './admin.js?v=0.9-stage8-noto-sans-jp',
   './common-seed.json',
   './migrate-v96.html',
-  './migrate-v96.css?v=0.9-stage8-cdinput-calendarplace',
-  './migrate-v96.js?v=0.9-stage8-cdinput-calendarplace'
+  './migrate-v96.css?v=0.9-stage8-noto-sans-jp',
+  './migrate-v96.js?v=0.9-stage8-noto-sans-jp'
 ];
 
 self.addEventListener('install', event => {
