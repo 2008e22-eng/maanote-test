@@ -23,7 +23,8 @@
       "officialUrl": "https://www.jp-r.co.jp/masaki_satou/event/006feb74b8da455d4d8e8d30b5f54904965d113acebc5cffe84c79f8d2b7cc76/",
       "status": "public",
       "version": 2,
-      "updatedAt": "2026-10-02T20:00:00+09:00"
+      "updatedAt": "2026-10-02T20:00:00+09:00",
+      "calendarLabel": "幕張"
     },
     {
       "id": "release-20261108-ishikawa",
@@ -48,7 +49,8 @@
       "officialUrl": "https://www.jp-r.co.jp/masaki_satou/event/006feb74b8da455d4d8e8d30b5f54904965d113acebc5cffe84c79f8d2b7cc76/",
       "status": "public",
       "version": 2,
-      "updatedAt": "2026-10-02T20:00:00+09:00"
+      "updatedAt": "2026-10-02T20:00:00+09:00",
+      "calendarLabel": "金沢"
     },
     {
       "id": "release-20261115-tokyo",
@@ -89,7 +91,8 @@
       "officialUrl": "https://www.jp-r.co.jp/masaki_satou/event/006feb74b8da455d4d8e8d30b5f54904965d113acebc5cffe84c79f8d2b7cc76/",
       "status": "public",
       "version": 2,
-      "updatedAt": "2026-10-02T20:00:00+09:00"
+      "updatedAt": "2026-10-02T20:00:00+09:00",
+      "calendarLabel": "錦糸町"
     },
     {
       "id": "release-20261121-hokkaido",
@@ -109,7 +112,8 @@
       "officialUrl": "https://www.jp-r.co.jp/masaki_satou/event/006feb74b8da455d4d8e8d30b5f54904965d113acebc5cffe84c79f8d2b7cc76/",
       "status": "public",
       "version": 2,
-      "updatedAt": "2026-10-02T20:00:00+09:00"
+      "updatedAt": "2026-10-02T20:00:00+09:00",
+      "calendarLabel": "札幌"
     },
     {
       "id": "release-20261123-aichi",
@@ -129,7 +133,8 @@
       "officialUrl": "https://www.jp-r.co.jp/masaki_satou/event/006feb74b8da455d4d8e8d30b5f54904965d113acebc5cffe84c79f8d2b7cc76/",
       "status": "public",
       "version": 2,
-      "updatedAt": "2026-10-02T20:00:00+09:00"
+      "updatedAt": "2026-10-02T20:00:00+09:00",
+      "calendarLabel": "名古屋"
     },
     {
       "id": "release-20261128-hiroshima",
@@ -149,7 +154,8 @@
       "officialUrl": "https://www.jp-r.co.jp/masaki_satou/event/006feb74b8da455d4d8e8d30b5f54904965d113acebc5cffe84c79f8d2b7cc76/",
       "status": "public",
       "version": 2,
-      "updatedAt": "2026-10-02T20:00:00+09:00"
+      "updatedAt": "2026-10-02T20:00:00+09:00",
+      "calendarLabel": "広島"
     },
     {
       "id": "release-20261206-fukuoka",
@@ -169,7 +175,8 @@
       "officialUrl": "https://www.jp-r.co.jp/masaki_satou/event/006feb74b8da455d4d8e8d30b5f54904965d113acebc5cffe84c79f8d2b7cc76/",
       "status": "public",
       "version": 2,
-      "updatedAt": "2026-10-02T20:00:00+09:00"
+      "updatedAt": "2026-10-02T20:00:00+09:00",
+      "calendarLabel": "博多"
     },
     {
       "id": "release-20261215-tokyo",
@@ -194,7 +201,8 @@
       "officialUrl": "https://www.jp-r.co.jp/masaki_satou/event/006feb74b8da455d4d8e8d30b5f54904965d113acebc5cffe84c79f8d2b7cc76/",
       "status": "public",
       "version": 2,
-      "updatedAt": "2026-10-02T20:00:00+09:00"
+      "updatedAt": "2026-10-02T20:00:00+09:00",
+      "calendarLabel": "池袋"
     },
     {
       "id": "release-20261219-hyogo",
@@ -214,7 +222,8 @@
       "officialUrl": "https://www.jp-r.co.jp/masaki_satou/event/006feb74b8da455d4d8e8d30b5f54904965d113acebc5cffe84c79f8d2b7cc76/",
       "status": "public",
       "version": 2,
-      "updatedAt": "2026-10-02T20:00:00+09:00"
+      "updatedAt": "2026-10-02T20:00:00+09:00",
+      "calendarLabel": "神戸"
     }
   ],
   "otherItems": [

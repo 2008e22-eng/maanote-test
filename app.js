@@ -9,21 +9,21 @@
   const seededOfficialEvents = [
     {
       id:'release-20261102-chiba', category:'release_event', date:'2026-11-02', prefecture:'千葉',
-      venue:'イオンモール幕張新都心', venueDetail:null,
+      venue:'イオンモール幕張新都心', venueDetail:null, calendarLabel:'幕張',
       nearestStations:[{name:'幕張豊砂駅', walkMinutes:null}],
       salesStart:null, shipping:{type:'unpublished', amount:null}, purchaseLimit:null,
       parts:[], officialUrl:OFFICIAL_URL, status:'public', version:2, updatedAt:'2026-10-02T20:00:00+09:00'
     },
     {
       id:'release-20261108-ishikawa', category:'release_event', date:'2026-11-08', prefecture:'石川',
-      venue:'金沢フォーラス', venueDetail:null,
+      venue:'金沢フォーラス', venueDetail:null, calendarLabel:'金沢',
       nearestStations:[{name:'金沢駅', walkMinutes:null}],
       salesStart:null, shipping:{type:'unpublished', amount:null}, purchaseLimit:null,
       parts:[], officialUrl:OFFICIAL_URL, status:'public', version:2, updatedAt:'2026-10-02T20:00:00+09:00'
     },
     {
       id:'release-20261115-tokyo', category:'release_event', date:'2026-11-15', prefecture:'東京',
-      venue:'タワーレコード錦糸町パルコ店', venueDetail:'店内イベントスペース',
+      venue:'タワーレコード錦糸町パルコ店', venueDetail:'店内イベントスペース', calendarLabel:'錦糸町',
       nearestStations:[{name:'錦糸町駅', walkMinutes:1}],
       salesStart:'11:00', shipping:{type:'paid', amount:950}, purchaseLimit:{count:4, scope:'per_transaction'},
       parts:[
@@ -34,37 +34,37 @@
     },
     {
       id:'release-20261121-hokkaido', category:'release_event', date:'2026-11-21', prefecture:'北海道',
-      venue:'サッポロファクトリー', venueDetail:null,
+      venue:'サッポロファクトリー', venueDetail:null, calendarLabel:'札幌',
       nearestStations:[], salesStart:null, shipping:{type:'unpublished', amount:null}, purchaseLimit:null,
       parts:[], officialUrl:OFFICIAL_URL, status:'public', version:2, updatedAt:'2026-10-02T20:00:00+09:00'
     },
     {
       id:'release-20261123-aichi', category:'release_event', date:'2026-11-23', prefecture:'愛知',
-      venue:'エアポートウォーク名古屋', venueDetail:null,
+      venue:'エアポートウォーク名古屋', venueDetail:null, calendarLabel:'名古屋',
       nearestStations:[], salesStart:null, shipping:{type:'unpublished', amount:null}, purchaseLimit:null,
       parts:[], officialUrl:OFFICIAL_URL, status:'public', version:2, updatedAt:'2026-10-02T20:00:00+09:00'
     },
     {
       id:'release-20261128-hiroshima', category:'release_event', date:'2026-11-28', prefecture:'広島',
-      venue:'イオンモール広島府中', venueDetail:null,
+      venue:'イオンモール広島府中', venueDetail:null, calendarLabel:'広島',
       nearestStations:[], salesStart:null, shipping:{type:'unpublished', amount:null}, purchaseLimit:null,
       parts:[], officialUrl:OFFICIAL_URL, status:'public', version:2, updatedAt:'2026-10-02T20:00:00+09:00'
     },
     {
       id:'release-20261206-fukuoka', category:'release_event', date:'2026-12-06', prefecture:'福岡',
-      venue:'キャナルシティ博多', venueDetail:null,
+      venue:'キャナルシティ博多', venueDetail:null, calendarLabel:'博多',
       nearestStations:[], salesStart:null, shipping:{type:'unpublished', amount:null}, purchaseLimit:null,
       parts:[], officialUrl:OFFICIAL_URL, status:'public', version:2, updatedAt:'2026-10-02T20:00:00+09:00'
     },
     {
       id:'release-20261215-tokyo', category:'release_event', date:'2026-12-15', prefecture:'東京',
-      venue:'池袋・サンシャインシティ 噴水広場', venueDetail:null,
+      venue:'池袋・サンシャインシティ 噴水広場', venueDetail:null, calendarLabel:'池袋',
       nearestStations:[{name:'池袋駅', walkMinutes:null}], salesStart:null, shipping:{type:'unpublished', amount:null}, purchaseLimit:null,
       parts:[], officialUrl:OFFICIAL_URL, status:'public', version:2, updatedAt:'2026-10-02T20:00:00+09:00'
     },
     {
       id:'release-20261219-hyogo', category:'release_event', date:'2026-12-19', prefecture:'兵庫',
-      venue:'神戸ハーバーランド スペースシアター', venueDetail:null,
+      venue:'神戸ハーバーランド スペースシアター', venueDetail:null, calendarLabel:'神戸',
       nearestStations:[], salesStart:null, shipping:{type:'unpublished', amount:null}, purchaseLimit:null,
       parts:[], officialUrl:OFFICIAL_URL, status:'public', version:2, updatedAt:'2026-10-02T20:00:00+09:00'
     }
@@ -670,7 +670,16 @@
     document.querySelector('[data-action="edit-day"]').onclick=()=>{state.detailTab='day';renderDetail();setTimeout(()=>openDayEditSheet(ev.id),40)};
     document.querySelectorAll('[data-detail-tab]').forEach(b=>b.onclick=()=>{state.detailTab=b.dataset.detailTab;renderDetail();});
     document.querySelectorAll('[data-status]').forEach(b=>b.onclick=async()=>{await savePlan(ev.id,{participationStatus:b.dataset.status});renderDetail();});
-    document.querySelectorAll('[data-step]').forEach(b=>b.onclick=()=>handleStep(ev.id,b));
+    const cdInput=document.querySelector('[data-cd-quantity-input]');
+    if(cdInput){
+      const persistCd=async()=>{
+        const value=numOrNull(cdInput.value);
+        await savePlan(ev.id,{cdQuantity:value});
+        cdInput.value=value??'';
+      };
+      cdInput.addEventListener('change',persistCd);
+      cdInput.addEventListener('blur',persistCd);
+    }
     document.querySelectorAll('[data-edit-part]').forEach(b=>b.onclick=()=>openPartEditSheet(ev.id,b.dataset.editPart));
     const prev=document.querySelector('[data-page-prev]'), next=document.querySelector('[data-page-next]');
     if(prev) prev.onclick=()=>openAdjacent(-1);
@@ -721,7 +730,7 @@
           ${[['confirmed','✅ 参加確定'],['maybe','🩷 まーちゃんに会いたくなるかも'],['not_attending','－ 不参加']].map(([k,l])=>`<button class="status-option ${plan.participationStatus===k?'active':''}" data-status="${k}"><span class="radio"></span><span>${l}</span></button>`).join('')}
         </div>
       </section>
-      ${confirmed?`<section class="card section-card"><div class="quick-value"><div class="quick-value-label">CD購入枚数</div><div class="stepper"><button data-step="cd" data-delta="-1">−</button><span class="value">${plan.cdQuantity??0}</span><button data-step="cd" data-delta="1">＋</button></div></div></section>
+      ${confirmed?`<section class="card section-card"><div class="quick-value"><div class="quick-value-label">CD購入枚数</div><div class="cd-quantity-entry"><input class="edit-pill cd-quantity-input" inputmode="numeric" pattern="[0-9]*" aria-label="CD購入枚数" value="${plan.cdQuantity??''}" placeholder="0" data-cd-quantity-input><span>枚</span></div></div></section>
       <section class="card section-card">
         <div class="section-title-row"><div class="section-title">各部</div><span class="small muted">自動保存</span></div>
         <div class="user-part-table">
@@ -993,24 +1002,27 @@
   }
 
   function eventCalendarLabel(ev){
-    const station=ev?.nearestStations?.[0]?.name ? ev.nearestStations[0].name.replace(/駅.*$/,'') : '';
-    if(station) return station;
-    let venue=String(ev?.venue||'').trim();
-    const special=[
-      [/^サッポロファクトリー$/,'札幌'],
-      [/^キャナルシティ博多$/,'博多'],
-      [/^金沢フォーラス$/,'金沢'],
-      [/^エアポートウォーク名古屋$/,'名古屋'],
-      [/^神戸ハーバーランド.*$/,'神戸'],
-      [/^イオンモール幕張新都心$/,'幕張'],
-      [/^イオンモール広島府中$/,'広島'],
-      [/^池袋・サンシャインシティ.*$/,'池袋'],
-      [/^タワーレコード錦糸町パルコ店$/,'錦糸町']
+    if(ev?.calendarLabel) return shorten(ev.calendarLabel,6);
+    const venue=String(ev?.venue||'').trim();
+    const placeRules=[
+      [/幕張/,'幕張'],
+      [/金沢/,'金沢'],
+      [/錦糸町/,'錦糸町'],
+      [/サッポロ|札幌/,'札幌'],
+      [/名古屋/,'名古屋'],
+      [/広島/,'広島'],
+      [/博多/,'博多'],
+      [/池袋|サンシャイン/,'池袋'],
+      [/神戸/,'神戸']
     ];
-    for(const [pattern,label] of special){ if(pattern.test(venue)) return label; }
-    venue=venue.replace(/イオンモール|タワーレコード|エアポートウォーク|キャナルシティ|サンシャインシティ|ハーバーランド|スペースシアター|噴水広場|パルコ店|フォーラス|店内イベントスペース|店/g,'').replace(/[・\s]+/g,' ').trim();
-    if(venue) return shorten(venue,6);
-    return ev?.prefecture||'イベント';
+    for(const [pattern,label] of placeRules){
+      if(pattern.test(venue)) return label;
+    }
+    const compact=venue
+      .replace(/イオンモール|タワーレコード|エアポートウォーク|キャナルシティ|サンシャインシティ|ハーバーランド|スペースシアター|噴水広場|パルコ店|フォーラス|店内イベントスペース|店/g,'')
+      .replace(/[・\s]+/g,' ')
+      .trim();
+    return shorten(compact||ev?.prefecture||'イベント',6);
   }
 
   function renderMonthGrid(year,month){
@@ -1025,7 +1037,7 @@
       const dayClass=`calendar-day ${ds===today?'today ':''}${holidayName?'holiday ':''}`.trim();
       const numClass=`day-num ${holidayName?'holiday':(dow===0?'sun':dow===6?'sat':'')}`.trim();
       const pills=dayEntries.slice(0,3).map(x=>{
-        const body=x.kind==='event'?escapeHTML(shorten(x.title,6)):`${x.icon} ${escapeHTML(shorten(x.title,8))}`;
+        const body=x.kind==='event'?`⭐️${escapeHTML(shorten(x.title,6))}`:`${x.icon} ${escapeHTML(shorten(x.title,8))}`;
         return `<span class="day-pill ${x.kind}">${body}</span>`;
       }).join('');
       const more=dayEntries.length>3?`<span class="day-more">＋${dayEntries.length-3}</span>`:'';

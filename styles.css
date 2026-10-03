@@ -864,3 +864,28 @@ html[data-font-size="xlarge"] .part-line{
   .travel-sheet .form-input,
   .travel-sheet .form-select{font-size:20px}
 }
+
+
+/* 2026-10-04: direct CD quantity entry */
+.cd-quantity-entry{
+  display:flex;
+  align-items:center;
+  gap:7px;
+  font-weight:850;
+}
+.cd-quantity-input{
+  width:82px;
+  min-width:82px;
+  min-height:42px;
+  text-align:center;
+  font-size:19px;
+  font-weight:900;
+  font-variant-numeric:tabular-nums;
+  appearance:none;
+  -webkit-appearance:none;
+}
+.cd-quantity-input:focus{
+  outline:2px solid rgba(71,176,160,.24);
+  border-color:var(--accent);
+  background:#fff;
+}
