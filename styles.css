@@ -597,3 +597,60 @@ body { font-size:13px; }
 .home-subtitle { font-size:9.5px; }
 .home-empty-add { font-size:9.5px; }
 .tab-btn { font-size:8.5px; }
+
+/* 2026-10-03 big type + tighter spacing */
+.content{padding:8px 10px 16px}
+.home-hero-inner{padding:max(10px, env(safe-area-inset-top)) 12px 12px;min-height:112px}
+.home-content{margin-top:-10px}
+.section-card{padding:10px;margin-bottom:8px}
+.event-hero-card{padding:10px}
+.section-title-row{margin-bottom:7px}
+.brand{font-size:31px}
+.brand-sub{margin-top:4px;font-size:14px}
+.event-kicker{font-size:15px;font-weight:900}
+.event-date{font-size:22px;line-height:1.05}
+.status-badge{padding:4px 8px;font-size:12px}
+.venue-name{margin-top:5px;font-size:18px;line-height:1.28}
+.map-row{margin-top:3px;font-size:14px}
+.next-panel{margin:8px 0 0;padding:8px 9px}
+.next-label{font-size:14px;font-weight:900}
+.next-time{font-size:28px;line-height:1}
+.next-title{font-size:18px;font-weight:900}
+.info-strip{margin-top:6px;padding:7px 8px;font-size:14px;gap:8px}
+.home-cd-line{font-size:15px}
+.home-cd-line strong{font-size:28px}
+.compact-table{margin-top:6px;font-size:15px}
+.compact-table .tr{min-height:35px}
+.compact-table .tr:first-child{font-size:11px}
+.compact-table .td{padding:4px 3px}
+.home-shortcuts{gap:6px;margin-top:7px}
+.shortcut-btn{min-height:48px;font-size:16px}
+.shortcut-btn svg{width:18px;height:18px}
+.section-title{font-size:17px}
+.mini-link{font-size:14px !important}
+.todo-list{gap:5px}
+.todo-row{min-height:48px;padding:7px 8px;gap:6px}
+.todo-title{font-size:17px}
+.todo-meta{font-size:12px}
+.select-circle{width:22px;height:22px}
+.home-row-btn{padding:0}
+.home-row-time{font-size:14px}
+.home-row-main span{font-size:15px}
+.home-row-main small{font-size:11px}
+.tabbar-inner{height:60px}
+.tab-btn{gap:2px;font-size:11px}
+.tab-btn svg{width:23px;height:23px}
+.news-card,.updates-card{padding:10px}
+.news-card .title,.updates-card .title{font-size:16px}
+
+/* list/detail readability */
+.event-card{padding:10px}
+.event-card.confirmed{padding:9px}
+.event-card-date{font-size:18px}
+.event-card-venue{font-size:16px}
+.event-card-map,.event-card-info,.part-lines,.event-card-foot{font-size:13px}
+.detail-venue{font-size:22px}
+.detail-place{font-size:14px}
+.info-row{min-height:40px;padding:7px 0}
+.form-label{font-size:12px}
+.form-input,.form-select{min-height:41px;padding:8px 10px;font-size:15px}
