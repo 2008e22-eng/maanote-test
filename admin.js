@@ -91,8 +91,28 @@
   function closeSheet(){sheet.innerHTML=''}
 
   function scheduleDraft(type,data){clearTimeout(state.draftTimer);state.draftTimer=setTimeout(async()=>{await put('adminDrafts',{id:`${type}:${data.id}`,type,data,updatedAt:now()});showToast('下書き保存')},350)}
-  function previewEvent(x){showSheet(`<div class="sheethead"><div class="sheettitle">公開プレビュー</div><button class="textbtn" data-close>閉じる</button></div><div class="preview"><div class="big">${h(jpDate(x.date))} ${h(x.prefecture)} · ${h(x.venue||'会場未入力')}</div><div class="small">${h(x.venueDetail||'')}<br>販売 ${h(x.salesStart||'未発表')} ｜ 送料 ${h(shippingText(x.shipping))} ｜ 上限 ${x.purchaseLimit?.count?x.purchaseLimit.count+'枚':'未発表'}</div><div class="small">${(x.parts||[]).map(p=>`${h(p.label)} ${h(p.startTime||'—')} 集${h(p.priorityMeetTime||'—')}`).join('<br>')}</div></div><button class="secondary" data-close style="width:100%;margin-top:10px">戻る</button>`);bindClose()}
-  function previewOther(x){showSheet(`<div class="sheethead"><div class="sheettitle">公開プレビュー</div><button class="textbtn" data-close>閉じる</button></div><div class="preview"><div class="date">${h(CATEGORIES[x.category]||'OTHER')} · ${h(jpDate(x.date))} ${h(x.time||'')}</div><div class="big">${h(x.title||'タイトル未入力')}</div><div class="small">${h(x.place||'')}<br>${h(x.note||'')}</div></div><button class="secondary" data-close style="width:100%;margin-top:10px">戻る</button>`);bindClose()}
+  async function persistDraftNow(type,data){
+    clearTimeout(state.draftTimer);
+    await put('adminDrafts',{id:`${type}:${data.id}`,type,data,updatedAt:now()});
+  }
+
+  async function previewEvent(x){
+    await persistDraftNow('event',x);
+    showSheet(`<div class="sheethead"><div class="sheettitle">公開プレビュー</div><button class="textbtn" data-preview-back>閉じる</button></div><div class="preview"><div class="big">${h(jpDate(x.date))} ${h(x.prefecture)} · ${h(x.venue||'会場未入力')}</div><div class="small">${h(x.venueDetail||'')}<br>販売 ${h(x.salesStart||'未発表')} ｜ 送料 ${h(shippingText(x.shipping))} ｜ 上限 ${x.purchaseLimit?.count?x.purchaseLimit.count+'枚':'未発表'}</div><div class="small">${(x.parts||[]).map(p=>`${h(p.label)} ${h(p.startTime||'—')} 集${h(p.priorityMeetTime||'—')}`).join('<br>')}</div></div><div class="preview-actions"><button class="secondary" data-preview-back>編集に戻る</button><button class="primary" data-preview-publish>この内容を公開</button></div>`);
+    const back=()=>openEventEditor(structuredClone(x));
+    sheet.querySelectorAll('[data-preview-back]').forEach(b=>b.onclick=back);
+    sheet.querySelector('[data-preview-publish]').onclick=()=>publish('event',structuredClone(x));
+    sheet.querySelector('.sheetback')?.addEventListener('click',e=>{if(e.target.classList.contains('sheetback'))back()});
+  }
+
+  async function previewOther(x){
+    await persistDraftNow('other',x);
+    showSheet(`<div class="sheethead"><div class="sheettitle">公開プレビュー</div><button class="textbtn" data-preview-back>閉じる</button></div><div class="preview"><div class="date">${h(CATEGORIES[x.category]||'OTHER')} · ${h(jpDate(x.date))} ${h(x.time||'')}</div><div class="big">${h(x.title||'タイトル未入力')}</div><div class="small">${h(x.place||'')}<br>${h(x.note||'')}</div></div><div class="preview-actions"><button class="secondary" data-preview-back>編集に戻る</button><button class="primary" data-preview-publish>この内容を公開</button></div>`);
+    const back=()=>openOtherEditor(structuredClone(x));
+    sheet.querySelectorAll('[data-preview-back]').forEach(b=>b.onclick=back);
+    sheet.querySelector('[data-preview-publish]').onclick=()=>publish('other',structuredClone(x));
+    sheet.querySelector('.sheetback')?.addEventListener('click',e=>{if(e.target.classList.contains('sheetback'))back()});
+  }
   function shippingText(sh){if(!sh||sh.type==='unpublished')return '未発表';if(sh.type==='not_listed')return '記載なし';if(sh.type==='free')return '無料';return sh.amount!=null?`¥${Number(sh.amount).toLocaleString('ja-JP')}`:'有料'}
 
   async function publish(type,data){

@@ -1,9 +1,9 @@
-const CACHE = 'maanote-v0.9-stage7-reference3-20261003-1';
+const CACHE = 'maanote-v0.9-stage7-reference4-20261003-1';
 const APP_SHELL = [
   './',
   './index.html',
-  './styles.css?v=0.9-stage7-reference3',
-  './app.js?v=0.9-stage7-reference3',
+  './styles.css?v=0.9-stage7-reference4',
+  './app.js?v=0.9-stage7-reference4',
   './manifest.webmanifest',
   './icon.svg',
   './icon-192.png',
@@ -11,8 +11,8 @@ const APP_SHELL = [
   './apple-touch-icon.png',
   './version.json',
   './admin.html',
-  './admin.css?v=0.9-stage7-reference3',
-  './admin.js?v=0.9-stage7-reference3',
+  './admin.css?v=0.9-stage7-reference4',
+  './admin.js?v=0.9-stage7-reference4',
   './common-seed.json'
 ];
 

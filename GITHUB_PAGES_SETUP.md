@@ -29,3 +29,9 @@
 - Home typography compacted to match the approved iPhone reference.
 - Official 3rd single event data marked updated 2026-10-02.
 - 11/15 Kinshicho details use the published venue/event information (14:00/17:00, sales 11:00, limit 4, shipping 950, priority assembly 20 min before).
+
+
+## reference4 更新
+- 管理者プレビューから「閉じる / 編集に戻る」で入力内容を保持して編集画面へ戻るよう修正
+- プレビューから直接「この内容を公開」可能
+- ホームの文字サイズを参考画像に合わせて拡大

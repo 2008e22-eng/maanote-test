@@ -564,3 +564,36 @@ body { font-size: 12px; background:#F7FAF9; }
 .tab-btn svg { width:18px; height:18px; }
 .common-notice { margin-top:0; }
 /* TEST notices remain available outside the home UI; home intentionally mirrors approved compact reference. */
+
+
+/* 2026-10-03: reference typography refinement — larger text while keeping compact layout */
+body { font-size:13px; }
+.brand { font-size:19px; }
+.brand-sub { font-size:10px; }
+.event-kicker { font-size:10.5px; }
+.event-date { font-size:13px; }
+.status-badge { font-size:9.5px; }
+.venue-name { font-size:11.5px; line-height:1.32; }
+.map-row { font-size:10.5px; }
+.next-label { font-size:10px; }
+.next-time { font-size:17px; }
+.next-title { font-size:11.5px; }
+.info-strip { font-size:9.5px; }
+.part-summary { font-size:10px !important; }
+.home-cd-line { font-size:10px; }
+.home-cd-line strong { font-size:13.5px; }
+.compact-table { font-size:10px; }
+.compact-table .tr:first-child { font-size:8.8px; }
+.compact-table .td { padding:3.5px 2px; }
+.shortcut-btn { font-size:10.5px; }
+.section-title { font-size:11.5px; }
+.mini-link { font-size:9.5px !important; }
+.home-row-btn { font-size:10px; }
+.home-row-time { font-size:10px; }
+.home-row-main span { font-size:10.5px; }
+.home-row-main small { font-size:8.5px; }
+.todo-title { font-size:10.5px; }
+.todo-meta { font-size:8.8px; }
+.home-subtitle { font-size:9.5px; }
+.home-empty-add { font-size:9.5px; }
+.tab-btn { font-size:8.5px; }
