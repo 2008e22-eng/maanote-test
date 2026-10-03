@@ -1,9 +1,9 @@
-const CACHE = 'maanote-v0.9-stage7-bigtext-emerald1-20261003';
+const CACHE = 'maanote-v0.9-stage7-homeadmin-fontsize2-20261003';
 const APP_SHELL = [
   './',
   './index.html',
-  './styles.css?v=0.9-stage7-bigtext-emerald1',
-  './app.js?v=0.9-stage7-bigtext-emerald1',
+  './styles.css?v=0.9-stage7-homeadmin-fontsize2',
+  './app.js?v=0.9-stage7-homeadmin-fontsize2',
   './manifest.webmanifest',
   './icon.svg',
   './icon-192.png',
@@ -11,8 +11,8 @@ const APP_SHELL = [
   './apple-touch-icon.png',
   './version.json',
   './admin.html',
-  './admin.css?v=0.9-stage7-bigtext-emerald1',
-  './admin.js?v=0.9-stage7-bigtext-emerald1',
+  './admin.css?v=0.9-stage7-homeadmin-fontsize2',
+  './admin.js?v=0.9-stage7-homeadmin-fontsize2',
   './common-seed.json'
 ];
 

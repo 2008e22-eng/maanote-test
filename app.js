@@ -155,7 +155,7 @@
     todoFilter:'open',
     todoSelection:false,
     selectedTodoIds:new Set(),
-    settings:{ mode:'personal_management', homeEventFilter:'all', headerImage:null, previewDate:null, imageQuality:'standard', rememberEventFilter:true, lastEventFilter:'all' },
+    settings:{ mode:'personal_management', homeEventFilter:'all', headerImage:null, previewDate:null, imageQuality:'standard', fontSize:'standard', rememberEventFilter:true, lastEventFilter:'all' },
     settingsReturnScreen:'home',
     db:null
   };
@@ -281,6 +281,7 @@
     }
     const settings=await idbGetAll('settings');
     for(const row of settings) state.settings[row.key]=row.value;
+    applyFontSize(state.settings.fontSize||'standard');
     if(state.settings.rememberEventFilter && state.settings.lastEventFilter) state.eventFilter=state.settings.lastEventFilter;
 
     let todos=await idbGetAll('todos');
@@ -319,8 +320,15 @@
     state.talkMemos=talkMemos.filter(x=>!x.deleted);
   }
 
+  function applyFontSize(size){
+    const allowed=['small','standard','large','xlarge'];
+    const value=allowed.includes(size)?size:'standard';
+    document.documentElement.dataset.fontSize=value;
+  }
+
   async function saveSetting(key,value){
     state.settings[key]=value;
+    if(key==='fontSize') applyFontSize(value);
     await idbPut('settings',{key,value});
   }
 
@@ -572,15 +580,20 @@
     const management=state.settings.mode!=='view_only';
     const kicker=mode==='today'?'TODAY':mode==='tomorrow'?'TOMORROW':'NEXT EVENT';
     const confirmed=plan.participationStatus==='confirmed';
+    const limitText=ev.purchaseLimit?.count?`${ev.purchaseLimit.count}枚/1会計`:'未発表';
     return `<section class="card event-hero-card" data-open-event="${ev.id}">
       <div class="event-head">
-        <div class="event-head-main"><div class="event-kicker">${kicker}</div><div class="event-date">${fmtDate(ev.date)}　${ev.prefecture} ${commonStatusBadge(ev.status)}</div></div>
-        ${management?`<span class="status-badge ${plan.participationStatus||'unset'}">${statusText(plan.participationStatus)}</span>`:''}
+        <div class="event-kicker">${kicker}</div>
+        <div class="event-date-row">
+          <div class="event-date">${fmtDate(ev.date)}　${ev.prefecture} ${commonStatusBadge(ev.status)}</div>
+          ${management?`<span class="status-badge ${plan.participationStatus||'unset'}">${statusText(plan.participationStatus)}</span>`:''}
+        </div>
       </div>
-      <div class="venue-name">${ev.venue}</div>
+      <div class="venue-name">${escapeHTML(ev.venue||'会場未発表')}</div>
+      ${ev.venueDetail?`<div class="venue-detail">${escapeHTML(ev.venueDetail)}</div>`:''}
       <button class="map-row" data-map="${escapeAttr(ev.venue+' '+stationText(ev))}">${icon('pin')}<span>${stationText(ev)}</span><span class="chev">›</span></button>
       ${next && (mode==='today'||mode==='tomorrow')?`<div class="next-panel"><div class="next-label">NEXT</div><div class="next-line"><span class="next-time">${next.time}</span><span class="next-title">${next.title}</span></div></div>`:''}
-      <div class="info-strip"><span>販売 <strong>${ev.salesStart||'未発表'}</strong></span><span>送料 <strong>${shippingText(ev.shipping)}</strong></span><span>上限 <strong>${ev.purchaseLimit?.count?ev.purchaseLimit.count+'枚':'未発表'}</strong></span></div>
+      <div class="info-strip"><span>販売 <strong>${ev.salesStart||'未発表'}</strong></span><span>送料 <strong>${shippingText(ev.shipping)}</strong></span><span>上限 <strong>${limitText}</strong></span></div>
       ${management && confirmed && parts.length ? userCompact(plan,parts) : parts.length?`<div class="small muted part-summary">${parts.map(p=>`${p.label} ${p.startTime}`).join(' ｜ ')}</div>`:`<div class="small muted part-summary">各部詳細：未発表</div>`}
       ${management?`<div class="home-shortcuts"><button class="shortcut-btn" data-open-setlist="${ev.id}">${icon('list')} セトリ${setlistFilledCount(ev.id)?` ${setlistFilledCount(ev.id)}部`:''}</button><button class="shortcut-btn" data-home-travel="${ev.id}">${icon('luggage')} 旅程</button></div>`:''}
     </section>`;
@@ -634,7 +647,7 @@
       <div class="event-card-top"><div class="event-card-date">${fmtDate(ev.date)}　${ev.prefecture} ${commonStatusBadge(ev.status)}</div>${state.settings.mode!=='view_only'?`<span class="status-badge ${plan.participationStatus||'unset'}">${statusText(plan.participationStatus)}</span>`:''}</div>
       <div class="event-card-venue">${ev.venue}</div>
       <div class="event-card-map">${icon('pin')} ${stationText(ev)} <span class="chev">›</span></div>
-      <div class="event-card-info"><span>販売 ${ev.salesStart||'未発表'}</span><span>送料 ${shippingText(ev.shipping)}</span><span>上限 ${ev.purchaseLimit?.count?ev.purchaseLimit.count+'枚':'未発表'}</span></div>
+      <div class="event-card-info"><span>販売 ${ev.salesStart||'未発表'}</span><span>送料 ${shippingText(ev.shipping)}</span><span>上限 ${ev.purchaseLimit?.count?ev.purchaseLimit.count+'枚/1会計':'未発表'}</span></div>
       ${ev.parts.length?`<div class="part-lines">${ev.parts.map(p=>{const u=plan.parts?.[p.id]||{};return `<div class="part-line"><span class="pname">${p.label}</span><span>${p.startTime}</span><span>集${p.priorityMeetTime||'—'}</span><span>${confirmed?`トーク${u.talkTicketQuantity??'—'}枚`:''}</span><span>${confirmed&&u.priorityNumber!=null?'#'+u.priorityNumber:''}</span></div>`}).join('')}</div>`:'<div class="part-lines"><div class="muted">各部詳細：未発表</div></div>'}
       ${confirmed?`<div class="event-card-foot"><span>CD ${plan.cdQuantity??0}枚</span><span>${travelCountForEvent(ev.id)?`🧳旅程 ${travelCountForEvent(ev.id)}件`:'🧳旅程なし'}</span></div>`:''}
     </button>`;
@@ -680,7 +693,7 @@
         ${infoRow('最寄駅',stationText(ev))}
         ${infoRow('販売開始',ev.salesStart)}
         ${infoRow('送料',shippingText(ev.shipping), shippingText(ev.shipping)==='未発表')}
-        ${infoRow('購入上限',ev.purchaseLimit?.count?`${ev.purchaseLimit.count}枚 / 1会計`:'未発表',!ev.purchaseLimit)}
+        ${infoRow('購入上限',ev.purchaseLimit?.count?`${ev.purchaseLimit.count}枚/1会計`:'未発表',!ev.purchaseLimit)}
       </div>
     </section>
     <section class="card section-card">
@@ -1619,6 +1632,12 @@
           <label class="settings-switch-row"><span><strong>イベント絞り込みを記憶</strong><small>前回選んだフィルターを次回も使う</small></span><input type="checkbox" data-setting-remember-filter ${state.settings.rememberEventFilter!==false?'checked':''}></label>
         </section>
 
+        <div class="settings-section-title">表示</div>
+        <section class="card settings-card">
+          <label class="settings-field"><span><strong>文字サイズ</strong><small>この端末だけに保存されます</small></span><select class="settings-select" data-setting-font-size><option value="small" ${state.settings.fontSize==='small'?'selected':''}>小さめ 90%</option><option value="standard" ${!state.settings.fontSize||state.settings.fontSize==='standard'?'selected':''}>標準 100%</option><option value="large" ${state.settings.fontSize==='large'?'selected':''}>大きめ 120%</option><option value="xlarge" ${state.settings.fontSize==='xlarge'?'selected':''}>特大 140%</option></select></label>
+          <div class="font-size-preview"><small>表示例</small><strong>11/2(月) 千葉　イオンモール幕張新都心</strong></div>
+        </section>
+
         <div class="settings-section-title">ホーム・画像</div>
         <section class="card settings-card">
           <div class="settings-image-block"><div><strong>ホームヘッダー画像</strong><small>イベントにはサムネイルを表示しません</small></div><div class="header-preview settings-header-preview" ${h?`style="background-image:url('${h.replace(/'/g,"%27")}')"`:''}></div><div class="settings-action-grid"><button data-pick-header>画像を変更</button><button data-delete-header ${h?'':'disabled'}>削除</button></div><input type="file" accept="image/*" hidden data-header-file></div>
@@ -1667,6 +1686,7 @@
     const mode=document.querySelector('[data-setting-mode]'); mode.onchange=async()=>{await saveSetting('mode',mode.value);showToast('✓ 利用モードを変更しました');};
     const hf=document.querySelector('[data-setting-home-filter]'); hf.onchange=async()=>{await saveSetting('homeEventFilter',hf.value);showToast('✓ 保存しました');};
     const rf=document.querySelector('[data-setting-remember-filter]'); rf.onchange=async()=>{await saveSetting('rememberEventFilter',rf.checked);if(rf.checked)await saveSetting('lastEventFilter',state.eventFilter);showToast('✓ 保存しました');};
+    const fs=document.querySelector('[data-setting-font-size]'); fs.onchange=async()=>{await saveSetting('fontSize',fs.value);showToast('✓ 文字サイズを変更しました');};
     const iq=document.querySelector('[data-setting-image-quality]'); iq.onchange=async()=>{await saveSetting('imageQuality',iq.value);showToast('✓ 画像画質を変更しました');};
     const pv=document.querySelector('[data-setting-preview]'); pv.onchange=async()=>{await saveSetting('previewDate',pv.value||null);state.calendarCursor=null;showToast('✓ TEST表示日を変更しました');};
     const file=document.querySelector('[data-header-file]'); document.querySelector('[data-pick-header]').onclick=()=>file.click();
