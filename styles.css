@@ -1039,3 +1039,65 @@ html, body, button, input, select, textarea { font-family: "Noto Sans JP", sans-
     padding:4px 5px;
   }
 }
+
+
+/* 2026-10-04 calendar fit-all fix:
+   no horizontal scrolling, full 7-day view, wider-looking event labels */
+.calendar-card{
+  overflow:hidden !important;
+}
+.week-head,
+.calendar-grid{
+  min-width:0 !important;
+  width:100%;
+}
+.calendar-day{
+  min-width:0;
+  min-height:104px;
+  padding-left:3px;
+  padding-right:3px;
+}
+.day-pill{
+  font-weight:400;
+}
+.day-pill.event{
+  width:100%;
+  min-height:27px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  box-sizing:border-box;
+  padding:3px 2px;
+  font-size:9px;
+  font-weight:400;
+  line-height:1.1;
+  white-space:nowrap;
+  overflow:visible;
+  text-overflow:clip;
+  letter-spacing:-0.02em;
+}
+.day-more{
+  font-weight:400;
+}
+@media (max-width:390px){
+  .week-head,
+  .calendar-grid{
+    min-width:0 !important;
+    width:100%;
+  }
+  .calendar-day{
+    min-height:100px;
+    padding-left:2px;
+    padding-right:2px;
+  }
+  .day-pill{
+    font-weight:400;
+  }
+  .day-pill.event{
+    min-height:26px;
+    padding:3px 1px;
+    font-size:8.5px;
+    font-weight:400;
+    letter-spacing:-0.03em;
+  }
+}

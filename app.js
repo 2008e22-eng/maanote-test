@@ -1038,7 +1038,7 @@
       const dayClass=`calendar-day ${ds===today?'today ':''}${holidayName?'holiday ':''}`.trim();
       const numClass=`day-num ${holidayName?'holiday':(dow===0?'sun':dow===6?'sat':'')}`.trim();
       const pills=dayEntries.slice(0,3).map(x=>{
-        const body=x.kind==='event'?`⭐️${escapeHTML(shorten(x.title,6))}`:`${x.icon} ${escapeHTML(shorten(x.title,8))}`;
+        const body=x.kind==='event'?`★${escapeHTML(shorten(x.title,6))}`:`${x.icon} ${escapeHTML(shorten(x.title,8))}`;
         return `<span class="day-pill ${x.kind}">${body}</span>`;
       }).join('');
       const more=dayEntries.length>3?`<span class="day-more">＋${dayEntries.length-3}</span>`:'';
