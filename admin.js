@@ -1,6 +1,6 @@
 (() => {
   'use strict';
-  const DB='MaaNoteDB', DB_VERSION=6;
+  const DB='MaaNoteDB', DB_VERSION=7;
   const app=document.getElementById('adminApp'), sheet=document.getElementById('adminSheet'), toast=document.getElementById('adminToast');
   const state={db:null,tab:'release',events:[],other:[],history:[],drafts:[],meta:{version:0},draftTimer:null};
   const CATEGORIES={live:'LIVE',fc:'FC EVENT',radio:'RADIO',limista:'LIMISTA',tv_web:'TV・WEB',release:'RELEASE',other:'OTHER'};
@@ -11,7 +11,7 @@
   const now=()=>new Date().toISOString();
   const jpDate=s=>{if(!s)return '日付未発表';const [y,m,d]=s.split('-').map(Number);const x=new Date(y,m-1,d);return `${y}/${m}/${d}(${['日','月','火','水','木','金','土'][x.getDay()]})`};
 
-  function openDB(){return new Promise((resolve,reject)=>{const r=indexedDB.open(DB,DB_VERSION);r.onupgradeneeded=()=>{const d=r.result;[['userEventPlans','eventId'],['settings','key'],['todos','id'],['personalSchedules','id'],['travelBookings','id'],['setlists','id'],['talkMemos','id'],['commonEvents','id'],['commonOtherItems','id'],['commonMeta','key'],['commonHistory','id'],['adminDrafts','id']].forEach(([n,k])=>{if(!d.objectStoreNames.contains(n))d.createObjectStore(n,{keyPath:k})})};r.onsuccess=()=>resolve(r.result);r.onerror=()=>reject(r.error)})}
+  function openDB(){const stores=[['userEventPlans','eventId'],['settings','key'],['todos','id'],['personalSchedules','id'],['travelBookings','id'],['setlists','id'],['talkMemos','id'],['commonEvents','id'],['commonOtherItems','id'],['commonMeta','key'],['commonHistory','id'],['adminDrafts','id'],['migrationInfo','id'],['legacyData','id']];const open=v=>new Promise((resolve,reject)=>{const r=v?indexedDB.open(DB,v):indexedDB.open(DB);r.onupgradeneeded=()=>{const d=r.result;stores.forEach(([n,k])=>{if(!d.objectStoreNames.contains(n))d.createObjectStore(n,{keyPath:k})})};r.onsuccess=()=>resolve(r.result);r.onerror=()=>reject(r.error)});return open(DB_VERSION).catch(e=>e&&e.name==='VersionError'?open():Promise.reject(e))}
   function all(store){return new Promise((resolve,reject)=>{const r=state.db.transaction(store,'readonly').objectStore(store).getAll();r.onsuccess=()=>resolve(r.result||[]);r.onerror=()=>reject(r.error)})}
   function put(store,v){return new Promise((resolve,reject)=>{const tx=state.db.transaction(store,'readwrite');tx.objectStore(store).put(v);tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error)})}
   function del(store,key){return new Promise((resolve,reject)=>{const tx=state.db.transaction(store,'readwrite');tx.objectStore(store).delete(key);tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error)})}

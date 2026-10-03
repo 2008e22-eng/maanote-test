@@ -188,25 +188,28 @@
   };
 
   function openDB(){
-    return new Promise((resolve,reject)=>{
-      const req = indexedDB.open('MaaNoteDB',6);
+    const stores=[
+      ['userEventPlans','eventId'],['settings','key'],['todos','id'],['personalSchedules','id'],
+      ['travelBookings','id'],['setlists','id'],['talkMemos','id'],['commonEvents','id'],
+      ['commonOtherItems','id'],['commonMeta','key'],['commonHistory','id'],['adminDrafts','id'],
+      ['migrationInfo','id'],['legacyData','id']
+    ];
+    const open = (version) => new Promise((resolve,reject)=>{
+      const req = version ? indexedDB.open('MaaNoteDB',version) : indexedDB.open('MaaNoteDB');
       req.onupgradeneeded = () => {
         const db=req.result;
-        if(!db.objectStoreNames.contains('userEventPlans')) db.createObjectStore('userEventPlans',{keyPath:'eventId'});
-        if(!db.objectStoreNames.contains('settings')) db.createObjectStore('settings',{keyPath:'key'});
-        if(!db.objectStoreNames.contains('todos')) db.createObjectStore('todos',{keyPath:'id'});
-        if(!db.objectStoreNames.contains('personalSchedules')) db.createObjectStore('personalSchedules',{keyPath:'id'});
-        if(!db.objectStoreNames.contains('travelBookings')) db.createObjectStore('travelBookings',{keyPath:'id'});
-        if(!db.objectStoreNames.contains('setlists')) db.createObjectStore('setlists',{keyPath:'id'});
-        if(!db.objectStoreNames.contains('talkMemos')) db.createObjectStore('talkMemos',{keyPath:'id'});
-        if(!db.objectStoreNames.contains('commonEvents')) db.createObjectStore('commonEvents',{keyPath:'id'});
-        if(!db.objectStoreNames.contains('commonOtherItems')) db.createObjectStore('commonOtherItems',{keyPath:'id'});
-        if(!db.objectStoreNames.contains('commonMeta')) db.createObjectStore('commonMeta',{keyPath:'key'});
-        if(!db.objectStoreNames.contains('commonHistory')) db.createObjectStore('commonHistory',{keyPath:'id'});
-        if(!db.objectStoreNames.contains('adminDrafts')) db.createObjectStore('adminDrafts',{keyPath:'id'});
+        stores.forEach(([name,keyPath])=>{
+          if(!db.objectStoreNames.contains(name)) db.createObjectStore(name,{keyPath});
+        });
       };
       req.onsuccess=()=>resolve(req.result);
       req.onerror=()=>reject(req.error);
+    });
+    return open(7).catch(err=>{
+      // 同じGitHub Pages URLで新しいMaaNoteを先に開いた場合、
+      // 端末内DBのバージョンが7より新しくても既存DBをそのまま開く。
+      if(err && err.name==='VersionError') return open();
+      throw err;
     });
   }
 
