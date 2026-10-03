@@ -1,6 +1,6 @@
 (() => {
   'use strict';
-  const DB='MaaNoteDB', DB_VERSION=7, APP_VERSION='0.9-stage9-rc1.2', EMERGENCY_COMMON_KEY='MaaNoteEmergencyCommonV1';
+  const DB='MaaNoteDB', DB_VERSION=7, APP_VERSION='0.9-stage10-rc2', EMERGENCY_COMMON_KEY='MaaNoteEmergencyCommonV1';
   const app=document.getElementById('adminApp'), sheet=document.getElementById('adminSheet'), toast=document.getElementById('adminToast');
   const state={db:null,tab:'release',events:[],other:[],history:[],drafts:[],meta:{version:0},draftTimer:null,backupTimer:null,backupSuspended:false,recovered:false};
   const CATEGORIES={live:'LIVE',fc:'FC EVENT',radio:'RADIO',limista:'LIMISTA',tv_web:'TV・WEB',release:'RELEASE',other:'OTHER'};
@@ -38,13 +38,14 @@
     const m=(await all('commonMeta')).find(x=>x.key==='publish'); state.meta=m||{version:0};
   }
 
-  function shell(content){return `<main class="shell"><header class="top"><div><div class="brand">MaaNote Admin</div><div class="sub">管理者用 · Stage 9 RC1.2 TEST</div></div><a class="app-link" href="./index.html">利用者画面へ</a></header><div class="warning"><strong>TEST用の管理者画面です。</strong><br>このStageでは同じ端末の「管理者配信データ領域」へ公開をシミュレーションします。ユーザー個人データにはアクセスしません。本番運用では、公開APIを<strong>サーバー側認証</strong>で保護してから使用します。URLを隠すだけの認証にはしません。</div><nav class="tabs"><button data-tab="release" class="${state.tab==='release'?'active':''}">3rd Single</button><button data-tab="other" class="${state.tab==='other'?'active':''}">その他</button><button data-tab="history" class="${state.tab==='history'?'active':''}">履歴</button></nav><div class="content">${content}</div></main>`}
+  function shell(content){return `<main class="shell"><header class="top"><div><div class="brand">MaaNote Admin</div><div class="sub">管理者用 · Stage 10 RC2</div></div><div class="top-actions"><button class="app-link admin-export" data-export-common-global>配信用JSON</button><a class="app-link" href="./index.html">利用者画面へ</a></div></header><div class="warning"><strong>RC2の配信方法</strong><br>ここで編集・公開した内容はまずこの端末へ保存されます。利用者全体へ反映するときは「配信用JSON」を書き出し、GitHub Pagesのルートにある <strong>common-data.json</strong> を上書きしてPushします。個人データにはアクセスしません。</div><nav class="tabs"><button data-tab="release" class="${state.tab==='release'?'active':''}">3rd Single</button><button data-tab="other" class="${state.tab==='other'?'active':''}">その他</button><button data-tab="history" class="${state.tab==='history'?'active':''}">履歴</button></nav><div class="content">${content}</div></main>`}
 
   function render(){
     if(state.tab==='release') app.innerHTML=shell(releaseList());
     else if(state.tab==='other') app.innerHTML=shell(otherList());
     else app.innerHTML=shell(historyList());
     app.querySelectorAll('[data-tab]').forEach(b=>b.onclick=()=>{state.tab=b.dataset.tab;render()});
+    app.querySelector('[data-export-common-global]')?.addEventListener('click',exportCommon);
     bindList();
   }
   function releaseList(){const drafts=state.drafts.filter(d=>d.type==='event');return `<div class="toolbar"><h2>リリースイベント</h2><button class="primary" data-new-event>＋ 新規</button></div><div class="meta">配信バージョン v${state.meta.version||0} · ${state.events.length}件</div>${drafts.length?`<div class="section">下書き</div><div class="list">${drafts.map(d=>`<article class="row"><div class="rowtop"><div><div class="date">自動保存 ${d.updatedAt?new Date(d.updatedAt).toLocaleString('ja-JP'):''}</div><div class="title">${h(d.data?.venue||'新規イベント')}</div></div><span class="status">下書き</span></div><div class="actions"><button data-resume-event="${attr(d.id)}">続きから</button><button data-discard-draft="${attr(d.id)}">破棄</button></div></article>`).join('')}</div>`:''}<div class="section">公開データ</div><div class="list">${state.events.map(e=>`<article class="row"><div class="rowtop"><div><div class="date">${jpDate(e.date)} ${h(e.prefecture||'')}</div><div class="title">${h(e.venue||'会場未入力')}</div><div class="meta">販売 ${h(e.salesStart||'未発表')} · ${e.parts?.length||0}部 · v${e.version||1}</div></div><span class="status ${h(e.status||'public')}">${statusLabel(e.status)}</span></div><div class="actions"><button data-edit-event="${attr(e.id)}">編集</button><button data-copy-event="${attr(e.id)}">複製</button></div></article>`).join('')||'<div class="empty">イベントデータがありません。</div>'}</div>`}
@@ -130,7 +131,7 @@
       if(same) data={...data,id:same.id};
     }
 
-    if(!confirm('この内容を管理者配信データとして公開しますか？\nTESTでは同じ端末の利用者画面へ反映されます。'))return;
+    if(!confirm('この内容を公開用データとして保存しますか？\n保存後、利用者全体へ反映するには common-data.json の書き出しとGitHubへのPushが必要です。'))return;
     const store=type==='event'?'commonEvents':'commonOtherItems'; const list=type==='event'?state.events:state.other; const before=list.find(x=>x.id===data.id)||null;
     const meta=(await all('commonMeta')).find(x=>x.key==='publish')||{version:0}; const version=Number(meta.version||0)+1; const publishedAt=now();
     const next={...data,version:(before?.version||0)+1,updatedAt:publishedAt}; await put(store,next);
@@ -139,12 +140,12 @@
     await put('commonHistory',{id:uid('history'),version,publishedAt,entityType:type,entityId:next.id,summary,before:before?structuredClone(before):null,after:structuredClone(next)});
     await del('adminDrafts',`${type}:${next.id}`).catch(()=>{}); closeSheet(); await load(); render();
     if('BroadcastChannel' in globalThis){const ch=new BroadcastChannel('maanote-common-data');ch.postMessage({version});ch.close()}
-    showToast('✓ 公開しました');
+    showToast('✓ 保存しました。配信用JSONを更新してください');
   }
 
   async function rollback(historyId){const rec=state.history.find(x=>x.id===historyId);if(!rec?.before)return;if(!confirm('この変更前の内容を、新しいバージョンとして再公開しますか？'))return;const store=rec.entityType==='event'?'commonEvents':'commonOtherItems';const current=(rec.entityType==='event'?state.events:state.other).find(x=>x.id===rec.entityId)||null;const meta=(await all('commonMeta')).find(x=>x.key==='publish')||{version:0};const version=Number(meta.version||0)+1;const publishedAt=now();const restored={...structuredClone(rec.before),version:(current?.version||0)+1,updatedAt:publishedAt};await put(store,restored);const summary=`${rec.summary} の変更前へロールバック`;await put('commonMeta',{key:'publish',version,updatedAt:publishedAt,summary});await put('commonHistory',{id:uid('history'),version,publishedAt,entityType:rec.entityType,entityId:rec.entityId,summary,before:current?structuredClone(current):null,after:structuredClone(restored)});await load();render();if('BroadcastChannel' in globalThis){const ch=new BroadcastChannel('maanote-common-data');ch.postMessage({version});ch.close()}showToast('✓ ロールバックを公開しました')}
 
-  function exportCommon(){const payload={format:'MaaNote-common-data',version:1,publishMeta:state.meta,events:state.events,otherItems:state.other,history:state.history,exportedAt:now()};const blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'});const u=URL.createObjectURL(blob),a=document.createElement('a');a.href=u;a.download=`MaaNote_common_v${state.meta.version||0}.json`;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),1000);showToast('配信データを書き出しました')}
+  function exportCommon(){const payload={format:'MaaNote-common-data',version:1,publishMeta:state.meta,events:state.events,otherItems:state.other,history:state.history,exportedAt:now()};const blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'});const u=URL.createObjectURL(blob),a=document.createElement('a');a.href=u;a.download='common-data.json';document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),1000);showToast('common-data.json を書き出しました')}
   let tt;function showToast(msg){clearTimeout(tt);toast.textContent=msg;toast.classList.add('show');tt=setTimeout(()=>toast.classList.remove('show'),1300)}
 
   async function boot(){try{state.db=await openDB();await recoverAdminEmergencyBackup();await load();scheduleAdminBackup();render();if(state.recovered)setTimeout(()=>showToast('端末バックアップから管理者データを自動復旧しました'),250)}catch(e){console.error(e);app.innerHTML=shell('<div class="empty">管理者データ領域を開けませんでした。</div>')}}

@@ -3,3 +3,6 @@
 .preview-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}.preview-actions button{min-height:40px}
 
 html, body, button, input, select, textarea { font-family: "Noto Sans JP", sans-serif; }
+
+.top-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:flex-end}
+.admin-export{font-family:"Noto Sans JP",sans-serif;cursor:pointer}

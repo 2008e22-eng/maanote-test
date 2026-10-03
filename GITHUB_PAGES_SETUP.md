@@ -1,4 +1,4 @@
-# MaaNote v0.9 Stage 8 - GitHub Pages TEST
+# MaaNote v0.9 Stage 10 RC2 - GitHub Pages
 
 このフォルダの中身を GitHub リポジトリのルートへ置いてください。
 
@@ -87,3 +87,6 @@
 - 新規利用者には個人用サンプルデータを自動投入しない
 - 既存IndexedDBの個人データは削除しない
 - テスト項目は STAGE9_TEST_CHECKLIST.md を参照
+
+
+Stage 10 RC2の配信手順は `STAGE10_DEPLOY.md` を参照してください。

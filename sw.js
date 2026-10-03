@@ -1,9 +1,9 @@
-const CACHE = 'maanote-v0.9-stage9-rc1.2-20261004';
+const CACHE = 'maanote-v0.9-stage10-rc2-20261004';
 const APP_SHELL = [
   './',
   './index.html',
-  './styles.css?v=0.9-stage9-rc1.2',
-  './app.js?v=0.9-stage9-rc1.2',
+  './styles.css?v=0.9-stage10-rc2',
+  './app.js?v=0.9-stage10-rc2',
   './manifest.webmanifest',
   './icon.svg',
   './icon-192.png',
@@ -11,12 +11,13 @@ const APP_SHELL = [
   './apple-touch-icon.png',
   './version.json',
   './admin.html',
-  './admin.css?v=0.9-stage9-rc1.2',
-  './admin.js?v=0.9-stage9-rc1.2',
+  './admin.css?v=0.9-stage10-rc2',
+  './admin.js?v=0.9-stage10-rc2',
   './common-seed.json',
+  './common-data.json',
   './migrate-v96.html',
-  './migrate-v96.css?v=0.9-stage9-rc1.2',
-  './migrate-v96.js?v=0.9-stage9-rc1.2'
+  './migrate-v96.css?v=0.9-stage10-rc2',
+  './migrate-v96.js?v=0.9-stage10-rc2'
 ];
 
 self.addEventListener('install', event => {
@@ -34,6 +35,23 @@ self.addEventListener('fetch', event => {
   if (req.method !== 'GET') return;
   const url = new URL(req.url);
   if (url.origin !== self.location.origin) return;
+
+  if (url.pathname.endsWith('/common-data.json') || url.pathname.endsWith('/version.json')) {
+    event.respondWith((async () => {
+      const key = url.pathname.endsWith('/common-data.json') ? './common-data.json' : './version.json';
+      try {
+        const fresh = await fetch(req, { cache: 'no-store' });
+        if (fresh && fresh.ok) {
+          const cache = await caches.open(CACHE);
+          await cache.put(key, fresh.clone());
+        }
+        return fresh;
+      } catch (_) {
+        return (await caches.match(key)) || new Response('', { status: 504, statusText: 'Offline' });
+      }
+    })());
+    return;
+  }
 
   if (req.mode === 'navigate') {
     event.respondWith((async () => {

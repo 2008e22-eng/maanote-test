@@ -1,7 +1,7 @@
 {
-  "name": "MaaNote TEST · Stage 8",
+  "name": "MaaNote",
   "short_name": "MaaNote",
-  "description": "非公式ファン向けイベント・遠征管理アプリ MaaNote TEST BUILD。初回読込後はホーム・イベント・予定・TODO・旅程・予約画像・セトリ・話したいことメモ・集計・設定などをオフライン利用可能。",
+  "description": "非公式ファン向けイベント・遠征管理アプリ MaaNote。イベント、予定、TODO、旅程などを端末に保存し、初回読込後は主要機能をオフラインでも利用できます。",
   "id": "./",
   "start_url": "./",
   "scope": "./",

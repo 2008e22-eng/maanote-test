@@ -1,8 +1,10 @@
 (() => {
   'use strict';
 
-  const APP_VERSION = '0.9-stage9-rc1.2';
-  const APP_VERSION_LABEL = 'v0.9 Stage 9 RC1.2';
+  const APP_VERSION = '0.9-stage10-rc2';
+  const APP_VERSION_LABEL = 'v0.9 Stage 10 RC2';
+  const IS_TEST_MODE = new URLSearchParams(location.search).get('test')==='1';
+  const COMMON_DATA_URL = './common-data.json';
   const ACCENT = '#47B0A0';
   const OFFICIAL_URL = 'https://www.jp-r.co.jp/masaki_satou/event/006feb74b8da455d4d8e8d30b5f54904965d113acebc5cffe84c79f8d2b7cc76/';
 
@@ -333,6 +335,49 @@
     });
   }
 
+  async function syncPublishedCommonData({force=false}={}){
+    if(!navigator.onLine) return {updated:false,offline:true};
+    try{
+      const res=await fetch(`${COMMON_DATA_URL}?t=${Date.now()}`,{cache:'no-store'});
+      if(!res.ok) throw new Error(`common-data ${res.status}`);
+      const payload=await res.json();
+      if(payload?.format!=='MaaNote-common-data' || !Array.isArray(payload.events) || !Array.isArray(payload.otherItems)) {
+        throw new Error('invalid common-data');
+      }
+
+      const metaRows=await idbGetAll('commonMeta');
+      const localMeta=metaRows.find(x=>x.key==='publish')||{version:0};
+      const remoteMeta=payload.publishMeta||{version:0};
+      const localVersion=Number(localMeta.version||0);
+      const remoteVersion=Number(remoteMeta.version||0);
+      const currentEvents=await idbGetAll('commonEvents');
+      const shouldApply=force || !currentEvents.length || remoteVersion>localVersion;
+
+      if(!shouldApply) return {updated:false,remoteVersion,localVersion};
+
+      for(const row of payload.events) await idbPut('commonEvents',structuredClone(row));
+      for(const row of payload.otherItems) await idbPut('commonOtherItems',structuredClone(row));
+
+      if(remoteMeta && typeof remoteMeta==='object'){
+        await idbPut('commonMeta',{
+          key:'publish',
+          version:remoteVersion,
+          updatedAt:remoteMeta.updatedAt||null,
+          summary:remoteMeta.summary||null
+        });
+      }
+
+      if(Array.isArray(payload.history)){
+        for(const row of payload.history) await idbPut('commonHistory',structuredClone(row));
+      }
+
+      return {updated:true,remoteVersion,localVersion};
+    }catch(err){
+      console.warn('Published common-data sync failed',err);
+      return {updated:false,error:true};
+    }
+  }
+
   async function loadCommonData(){
     let events=await idbGetAll('commonEvents');
     if(!events.length){
@@ -373,6 +418,7 @@
   async function initData(){
     state.db = await openDB();
     await restoreEmergencyBackupIfNeeded();
+    await syncPublishedCommonData();
     await loadCommonData();
     const plans=await idbGetAll('userEventPlans');
     state.userPlans=Object.fromEntries(plans.filter(p=>!p.deleted).map(p=>[p.eventId,p]));
@@ -556,7 +602,7 @@
   }
 
   function currentDate(){
-    if(state.settings.previewDate) return dateObj(state.settings.previewDate);
+    if(IS_TEST_MODE && state.settings.previewDate) return dateObj(state.settings.previewDate);
     return new Date();
   }
   function dayDiff(a,b){ return Math.round((dateObj(a)-new Date(b.getFullYear(),b.getMonth(),b.getDate()))/86400000); }
@@ -736,7 +782,6 @@
         ${state.eventCategoryTab==='release'?`<div class="filter-scroll">
           ${[['all','すべて'],['confirmed','参加確定'],['maybe','会いたくなるかも'],['not_attending','不参加']].map(([k,l])=>`<button class="filter-chip ${state.eventFilter===k?'active':''}" data-filter="${k}">${l}</button>`).join('')}
         </div>`:''}
-        <span class="test-ribbon" style="margin:5px 0 8px">ADMIN FEED TEST</span>
         ${state.eventCategoryTab==='release'?`<div class="event-list">${list.map(eventCard).join('')||'<div class="empty-state">該当するイベントはありません。</div>'}</div>`:`<div class="other-list">${otherList.map(otherItemCard).join('')||'<div class="card empty-state">その他の情報はまだありません。</div>'}</div>`}
       </div>
     </main>${tabbar('events')}`;
@@ -1337,7 +1382,6 @@
         <div class="filter-scroll travel-filter-scroll">
           ${[['all','すべて'],['outbound','行き'],['stay','宿泊'],['return','帰り']].map(([k,l])=>`<button class="filter-chip ${state.travelDirectionFilter===k?'active':''}" data-travel-filter="${k}">${l}</button>`).join('')}
         </div>
-        <span class="test-ribbon" style="margin:4px 0 8px">Stage 4 · 端末保存</span>
         <div class="travel-list">${list.length?list.map(travelCard).join(''):`<div class="card empty-state">旅程はまだありません。<br><button class="inline-add" data-add-travel data-event-id="${state.travelEventFilter||''}">＋ 旅程を追加</button></div>`}</div>
         <div class="travel-privacy-note">予約画像はこのStageでは端末のIndexedDBに保存します。画像を追加しただけでは外部サービスへ送信しません。</div>
       </div>
@@ -1752,7 +1796,6 @@
 
     app.innerHTML=`<main class="screen">${simpleTopbar('集計')}
       <div class="content summary-content">
-        <span class="test-ribbon">TEST BUILD · v0.9 Stage 9 RC1.2 · OFFLINE</span>
         <div class="test-note">端末に保存されている個人データから自動集計します。CD・トーク券は「参加確定」イベントの入力値を集計します。</div>
 
         <section class="summary-kpi-grid">
@@ -1905,7 +1948,7 @@
 
         <div class="settings-section-title">オフライン・データ</div>
         <section class="card settings-card">
-          <div class="settings-status-row"><span><strong>保存先</strong><small>v0.9 TEST BUILD</small></span><b>この端末</b></div>
+          <div class="settings-status-row"><span><strong>個人データの保存先</strong><small>この端末内に保存</small></span><b>端末保存</b></div>
           <div class="settings-status-row"><span><strong>オフライン利用</strong><small>ホーム・イベント・予定・旅程など</small></span><b class="${swReady?'ok':'muted'}">${swReady?'利用可能':'初回読込後'}</b></div>
           <button class="settings-nav-row" data-export-data="data"><span><strong>データを書き出す</strong><small>予約画像・ヘッダー画像を除くJSON</small></span><span class="chev">›</span></button>
           <button class="settings-nav-row" data-export-data="all"><span><strong>画像込みで書き出す</strong><small>ファイルサイズが大きくなる場合があります</small></span><span class="chev">›</span></button>
@@ -1922,12 +1965,13 @@
         <section class="card settings-card">
           <div class="settings-status-row"><span><strong>管理者配信データ</strong><small>個人データとは別領域で保存</small></span><b>v${state.commonMeta?.version||'—'}</b></div>
           <div class="settings-status-row"><span><strong>最終更新</strong><small>${state.commonMeta?.summary?escapeHTML(state.commonMeta.summary):'—'}</small></span><b>${state.commonMeta?.updatedAt?new Date(state.commonMeta.updatedAt).toLocaleDateString('ja-JP'):'—'}</b></div>
+          <button class="settings-nav-row" data-refresh-common><span><strong>配信情報を更新</strong><small>オンラインで最新の共通データを確認</small></span><span class="chev">›</span></button>
         </section>
 
-        <div class="settings-section-title">TEST</div>
+        ${IS_TEST_MODE?`<div class="settings-section-title">TEST</div>
         <section class="card settings-card">
-          <label class="settings-field"><span><strong>ホーム表示日</strong><small>通常日・前日・当日の表示確認用</small></span><select class="settings-select" data-setting-preview><option value="" ${!state.settings.previewDate?'selected':''}>実際の日付（前日と同じ表示）</option><option value="2026-11-10" ${state.settings.previewDate==='2026-11-10'?'selected':''}>通常日 11/10</option><option value="2026-11-14" ${state.settings.previewDate==='2026-11-14'?'selected':''}>前日 11/14</option><option value="2026-11-15" ${state.settings.previewDate==='2026-11-15'?'selected':''}>本日 11/15（通常表示）</option></select></label>
-        </section>
+          <label class="settings-field"><span><strong>ホーム表示日</strong><small>通常日・前日・当日の表示確認用</small></span><select class="settings-select" data-setting-preview><option value="" ${!state.settings.previewDate?'selected':''}>実際の日付</option><option value="2026-11-10" ${state.settings.previewDate==='2026-11-10'?'selected':''}>通常日 11/10</option><option value="2026-11-14" ${state.settings.previewDate==='2026-11-14'?'selected':''}>前日 11/14</option><option value="2026-11-15" ${state.settings.previewDate==='2026-11-15'?'selected':''}>当日 11/15</option></select></label>
+        </section>`:''}
 
         <div class="settings-section-title">アプリ情報</div>
         <section class="card settings-card">
@@ -1947,7 +1991,14 @@
     const rf=document.querySelector('[data-setting-remember-filter]'); rf.onchange=async()=>{await saveSetting('rememberEventFilter',rf.checked);if(rf.checked)await saveSetting('lastEventFilter',state.eventFilter);showToast('✓ 保存しました');};
     const fs=document.querySelector('[data-setting-font-size]'); fs.onchange=async()=>{await saveSetting('fontSize',fs.value);showToast('✓ 文字サイズを変更しました');};
     const iq=document.querySelector('[data-setting-image-quality]'); iq.onchange=async()=>{await saveSetting('imageQuality',iq.value);showToast('✓ 画像画質を変更しました');};
-    const pv=document.querySelector('[data-setting-preview]'); pv.onchange=async()=>{await saveSetting('previewDate',pv.value||null);state.calendarCursor=null;showToast('✓ TEST表示日を変更しました');};
+    const pv=document.querySelector('[data-setting-preview]'); if(pv)pv.onchange=async()=>{await saveSetting('previewDate',pv.value||null);state.calendarCursor=null;showToast('✓ TEST表示日を変更しました');};
+    const refreshCommon=document.querySelector('[data-refresh-common]'); if(refreshCommon)refreshCommon.onclick=async()=>{
+      if(!navigator.onLine){showToast('配信情報の更新はオンライン時に利用できます');return;}
+      const result=await syncPublishedCommonData();
+      await loadCommonData();
+      renderSettings();
+      showToast(result.updated?'✓ 配信情報を更新しました':'✓ 配信情報は最新です');
+    };
     const file=document.querySelector('[data-header-file]'); document.querySelector('[data-pick-header]').onclick=()=>file.click();
     file.onchange=async()=>{if(!file.files?.[0])return;const data=await resizeImage(file.files[0]);await saveSetting('headerImage',data);renderSettings();showToast('✓ ヘッダー画像を保存しました');};
     const del=document.querySelector('[data-delete-header]'); if(del)del.onclick=async()=>{if(!state.settings.headerImage)return;await saveSetting('headerImage',null);renderSettings();showToast('✓ ヘッダー画像を削除しました');};
@@ -1984,7 +2035,7 @@
     if(!navigator.onLine){showToast('更新確認はオンライン時に利用できます');return;}
     try{
       const res=await fetch(`./version.json?t=${Date.now()}`,{cache:'no-store'}); if(!res.ok)throw new Error('version'); const data=await res.json();
-      if(data.version && data.version!==APP_VERSION) showToast(`新しい版があります：${data.version}`); else showToast('✓ このTEST版は最新です');
+      if(data.version && data.version!==APP_VERSION) showToast(`新しい版があります：${data.version}`); else showToast('✓ この版は最新です');
       if('serviceWorker' in navigator){const reg=await navigator.serviceWorker.getRegistration();await reg?.update();}
     }catch(err){showToast('更新を確認できませんでした');}
   }
