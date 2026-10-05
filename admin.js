@@ -1,8 +1,11 @@
 (() => {
   'use strict';
-  const DB='MaaNoteAdminDB', LEGACY_DB='MaaNoteDB', DB_VERSION=7, APP_VERSION='0.9-stage11', EMERGENCY_COMMON_KEY='MaaNoteAdminEmergencyCommonV1', ROOT_PREFIX=location.pathname.includes('/admin/')?'../':'./';
+  const DB='MaaNoteAdminDB', LEGACY_DB='MaaNoteDB', DB_VERSION=7, APP_VERSION='0.9-stage12', EMERGENCY_COMMON_KEY='MaaNoteAdminEmergencyCommonV1', ROOT_PREFIX=location.pathname.includes('/admin/')?'../':'./';
   const app=document.getElementById('adminApp'), sheet=document.getElementById('adminSheet'), toast=document.getElementById('adminToast');
-  const state={db:null,tab:'release',events:[],other:[],history:[],drafts:[],meta:{version:0},draftTimer:null,backupTimer:null,backupSuspended:false,recovered:false};
+  const CONFIG=globalThis.MAANOTE_CONFIG||{};
+  const API_BASE=String(CONFIG.API_BASE||'').replace(/\/$/,'');
+  const SECURE_ADMIN=!!(CONFIG.ADMIN_AUTH_ENABLED && API_BASE && CONFIG.GOOGLE_CLIENT_ID);
+  const state={db:null,tab:'release',events:[],other:[],history:[],drafts:[],meta:{version:0},draftTimer:null,backupTimer:null,backupSuspended:false,recovered:false,auth:{token:null,user:null,role:null},admins:[]};
   const CATEGORIES={live:'LIVE',fc:'FC EVENT',radio:'RADIO',limista:'LIMISTA',tv_web:'TV・WEB',release:'RELEASE',other:'OTHER'};
 
   const h=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -68,14 +71,182 @@
     const m=(await all('commonMeta')).find(x=>x.key==='publish'); state.meta=m||{version:0};
   }
 
-  function shell(content){return `<main class="shell"><header class="top"><div><div class="brand">MaaNote Admin</div><div class="sub">管理者用 · Stage 11</div></div><div class="top-actions"><button class="app-link admin-export" data-export-common-global>配信用JSON</button><a class="app-link" href="${ROOT_PREFIX}">入力版</a><a class="app-link" href="${ROOT_PREFIX}view/">見るだけ版</a></div></header><div class="warning"><strong>Stage 11の配信方法</strong><br>ここで編集した共通情報は管理者専用領域へ保存されます。「配信用JSON」で <strong>common-data.json</strong> を書き出してGitHubへPushすると、見るだけ版と入力版の両方が同じ情報を受信します。管理者ログインとワンクリック配信は次段階で追加します。</div><nav class="tabs"><button data-tab="release" class="${state.tab==='release'?'active':''}">3rd Single</button><button data-tab="other" class="${state.tab==='other'?'active':''}">その他</button><button data-tab="history" class="${state.tab==='history'?'active':''}">履歴</button></nav><div class="content">${content}</div></main>`}
+
+  function authHeaders(extra={}){return {...extra,...(state.auth.token?{Authorization:`Bearer ${state.auth.token}`}:{})}}
+  async function api(path,options={}){
+    if(!API_BASE) throw new Error('API未設定');
+    const headers=authHeaders(options.headers||{});
+    const init={...options,headers};
+    if(init.body && typeof init.body!=='string'){
+      init.body=JSON.stringify(init.body);
+      headers['Content-Type']='application/json';
+    }
+    const res=await fetch(`${API_BASE}${path}`,init);
+    const data=await res.json().catch(()=>({}));
+    if(!res.ok){
+      const err=new Error(data.error||`API ${res.status}`);
+      err.status=res.status;
+      err.data=data;
+      throw err;
+    }
+    return data;
+  }
+
+  function renderAuthGate(message=''){
+    app.innerHTML=`<main class="shell"><header class="top"><div><div class="brand">MaaNote Admin</div><div class="sub">管理者用 · Stage 12</div></div></header>
+      <div class="auth-card">
+        <div class="auth-title">管理者ログイン</div>
+        <div class="auth-copy">Googleアカウントでログインしてください。登録済みのオーナー／管理者だけが編集・公開できます。</div>
+        ${message?`<div class="auth-error">${h(message)}</div>`:''}
+        <div id="googleSignInButton" class="google-signin"></div>
+        <div class="auth-help">管理者の追加・停止はオーナーだけが行えます。</div>
+      </div></main>`;
+  }
+
+  function initGoogleLogin(){
+    if(!SECURE_ADMIN) return;
+    renderAuthGate();
+    let tries=0;
+    const timer=setInterval(()=>{
+      tries++;
+      if(globalThis.google?.accounts?.id){
+        clearInterval(timer);
+        google.accounts.id.initialize({
+          client_id:CONFIG.GOOGLE_CLIENT_ID,
+          callback:async response=>{
+            try{
+              state.auth.token=response.credential;
+              const me=await api('/api/me');
+              state.auth.user=me.user;
+              state.auth.role=me.role;
+              await syncRemoteCommonDataForAdmin();
+              await load();
+              render();
+            }catch(e){
+              console.error(e);
+              state.auth={token:null,user:null,role:null};
+              renderAuthGate(e.status===403?'このGoogleアカウントには管理者権限がありません。':'ログインを確認できませんでした。');
+              setTimeout(initGoogleLogin,50);
+            }
+          }
+        });
+        google.accounts.id.renderButton(document.getElementById('googleSignInButton'),{
+          theme:'outline',size:'large',shape:'pill',text:'signin_with',width:280
+        });
+      }else if(tries>80){
+        clearInterval(timer);
+        renderAuthGate('Googleログインを読み込めませんでした。通信状態を確認してください。');
+      }
+    },100);
+  }
+
+  function logoutAdmin(){
+    state.auth={token:null,user:null,role:null};
+    state.admins=[];
+    try{globalThis.google?.accounts?.id?.disableAutoSelect()}catch(_){}
+    initGoogleLogin();
+  }
+
+  async function clearStore(store){
+    return new Promise((resolve,reject)=>{
+      const tx=state.db.transaction(store,'readwrite');
+      tx.objectStore(store).clear();
+      tx.oncomplete=()=>resolve();
+      tx.onerror=()=>reject(tx.error);
+    });
+  }
+
+  async function applyRemoteCommonData(payload){
+    if(!payload?.events || !payload?.otherItems) return;
+    state.backupSuspended=true;
+    try{
+      for(const store of ['commonEvents','commonOtherItems','commonMeta','commonHistory']) await clearStore(store);
+      for(const row of payload.events||[]) await put('commonEvents',structuredClone(row),true);
+      for(const row of payload.otherItems||[]) await put('commonOtherItems',structuredClone(row),true);
+      if(payload.publishMeta) await put('commonMeta',{key:'publish',...structuredClone(payload.publishMeta)},true);
+      for(const row of payload.history||[]) await put('commonHistory',structuredClone(row),true);
+    }finally{
+      state.backupSuspended=false;
+      scheduleAdminBackup();
+    }
+  }
+
+  async function syncRemoteCommonDataForAdmin(){
+    if(!SECURE_ADMIN) return false;
+    try{
+      const payload=await api('/api/common-data');
+      if(payload?.publishMeta?.version>=0){
+        await applyRemoteCommonData(payload);
+        return true;
+      }
+    }catch(e){
+      if(e.status!==404) console.warn('admin common-data sync failed',e);
+    }
+    return false;
+  }
+
+  async function publishToApi({summary,events,otherItems}){
+    const result=await api('/api/publish',{
+      method:'POST',
+      body:{baseVersion:Number(state.meta.version||0),summary,events,otherItems}
+    });
+    await applyRemoteCommonData(result.commonData);
+    return result.commonData;
+  }
+
+  async function refreshAdmins(){
+    if(!SECURE_ADMIN || state.auth.role!=='owner') return;
+    const data=await api('/api/admins');
+    state.admins=data.admins||[];
+  }
+
+  function adminsList(){
+    if(state.auth.role!=='owner') return '<div class="empty">オーナーだけが管理者設定を変更できます。</div>';
+    return `<div class="toolbar"><h2>管理者</h2></div>
+      <div class="meta">オーナーは管理者を後から追加・停止できます。メールアドレスはGoogleログインに使うものを登録します。</div>
+      <section class="admin-add-card">
+        <div class="field"><label>Googleアカウントのメール</label><input class="input" type="email" data-admin-email placeholder="example@gmail.com"></div>
+        <div class="field"><label>権限</label><select class="select" data-admin-role><option value="admin">管理者</option><option value="owner">オーナー</option></select></div>
+        <button class="primary" data-admin-add>追加</button>
+      </section>
+      <div class="section">登録済み</div>
+      <div class="list">${state.admins.map(a=>`<article class="row">
+        <div class="rowtop"><div><div class="title">${h(a.email)}</div><div class="meta">${a.role==='owner'?'オーナー':'管理者'} · ${a.status==='active'?'有効':'停止中'}</div></div><span class="status ${a.status==='active'?'public':'cancelled'}">${a.status==='active'?'有効':'停止'}</span></div>
+        <div class="actions">${a.email===state.auth.user?.email?'':`<button data-admin-toggle="${attr(a.email)}" data-next-status="${a.status==='active'?'disabled':'active'}">${a.status==='active'?'停止する':'有効にする'}</button>`}</div>
+      </article>`).join('')||'<div class="empty">管理者がいません。</div>'}</div>`;
+  }
+
+  function shell(content){
+    const secureNote=SECURE_ADMIN
+      ? `<div class="warning secure"><strong>Google認証モード</strong><br>公開すると、見るだけ版と入力版へ同じ共通情報が自動配信されます。</div>`
+      : `<div class="warning"><strong>認証未設定・ローカルモード</strong><br>現在は従来どおり、この端末へ保存して「配信用JSON」をGitHubへ上書きする方式です。Google認証の設定後は自動配信へ切り替わります。</div>`;
+    const authArea=SECURE_ADMIN&&state.auth.user
+      ? `<div class="admin-user"><span>${h(state.auth.user.name||state.auth.user.email)}</span><small>${state.auth.role==='owner'?'OWNER':'ADMIN'}</small><button data-admin-logout>ログアウト</button></div>`
+      : '';
+    const tabs=[
+      ['release','3rd Single'],
+      ['other','その他'],
+      ['history','履歴'],
+      ...(SECURE_ADMIN&&state.auth.role==='owner'?[['admins','管理者']]:[])
+    ];
+    return `<main class="shell"><header class="top"><div><div class="brand">MaaNote Admin</div><div class="sub">管理者用 · Stage 12</div></div><div class="top-actions">${SECURE_ADMIN?'':`<button class="app-link admin-export" data-export-common-global>配信用JSON</button>`}<a class="app-link" href="${ROOT_PREFIX}">入力版</a><a class="app-link" href="${ROOT_PREFIX}view/">見るだけ版</a></div></header>${authArea}${secureNote}<nav class="tabs">${tabs.map(([k,l])=>`<button data-tab="${k}" class="${state.tab===k?'active':''}">${l}</button>`).join('')}</nav><div class="content">${content}</div></main>`;
+  }
 
   function render(){
+    if(SECURE_ADMIN && !state.auth.user){initGoogleLogin();return}
     if(state.tab==='release') app.innerHTML=shell(releaseList());
     else if(state.tab==='other') app.innerHTML=shell(otherList());
-    else app.innerHTML=shell(historyList());
-    app.querySelectorAll('[data-tab]').forEach(b=>b.onclick=()=>{state.tab=b.dataset.tab;render()});
+    else if(state.tab==='history') app.innerHTML=shell(historyList());
+    else app.innerHTML=shell(adminsList());
+
+    app.querySelectorAll('[data-tab]').forEach(b=>b.onclick=async()=>{
+      const next=b.dataset.tab;
+      if(next==='admins') await refreshAdmins();
+      state.tab=next;
+      render();
+    });
     app.querySelector('[data-export-common-global]')?.addEventListener('click',exportCommon);
+    app.querySelector('[data-admin-logout]')?.addEventListener('click',logoutAdmin);
     bindList();
   }
   function releaseList(){const drafts=state.drafts.filter(d=>d.type==='event');return `<div class="toolbar"><h2>リリースイベント</h2><button class="primary" data-new-event>＋ 新規</button></div><div class="meta">配信バージョン v${state.meta.version||0} · ${state.events.length}件</div>${drafts.length?`<div class="section">下書き</div><div class="list">${drafts.map(d=>`<article class="row"><div class="rowtop"><div><div class="date">自動保存 ${d.updatedAt?new Date(d.updatedAt).toLocaleString('ja-JP'):''}</div><div class="title">${h(d.data?.venue||'新規イベント')}</div></div><span class="status">下書き</span></div><div class="actions"><button data-resume-event="${attr(d.id)}">続きから</button><button data-discard-draft="${attr(d.id)}">破棄</button></div></article>`).join('')}</div>`:''}<div class="section">公開データ</div><div class="list">${state.events.map(e=>`<article class="row"><div class="rowtop"><div><div class="date">${jpDate(e.date)} ${h(e.prefecture||'')}</div><div class="title">${h(e.venue||'会場未入力')}</div><div class="meta">販売 ${h(e.salesStart||'未発表')} · ${e.parts?.length||0}部 · v${e.version||1}</div></div><span class="status ${h(e.status||'public')}">${statusLabel(e.status)}</span></div><div class="actions"><button data-edit-event="${attr(e.id)}">編集</button><button data-copy-event="${attr(e.id)}">複製</button></div></article>`).join('')||'<div class="empty">イベントデータがありません。</div>'}</div>`}
@@ -95,6 +266,25 @@
     app.querySelectorAll('[data-discard-draft]').forEach(b=>b.onclick=async()=>{if(!confirm('この下書きを破棄しますか？'))return;await del('adminDrafts',b.dataset.discardDraft);await load();render();showToast('下書きを破棄しました')});
     app.querySelectorAll('[data-rollback]').forEach(b=>b.onclick=()=>rollback(b.dataset.rollback));
     app.querySelector('[data-export-common]')?.addEventListener('click',exportCommon);
+    app.querySelector('[data-admin-add]')?.addEventListener('click',async()=>{
+      const email=app.querySelector('[data-admin-email]')?.value?.trim();
+      const role=app.querySelector('[data-admin-role]')?.value||'admin';
+      if(!email){showToast('メールアドレスを入力してください');return}
+      try{
+        await api('/api/admins',{method:'POST',body:{email,role}});
+        await refreshAdmins();
+        render();
+        showToast('✓ 管理者を追加しました');
+      }catch(e){showToast(e.message||'追加できませんでした')}
+    });
+    app.querySelectorAll('[data-admin-toggle]').forEach(b=>b.onclick=async()=>{
+      try{
+        await api(`/api/admins/${encodeURIComponent(b.dataset.adminToggle)}`,{method:'PATCH',body:{status:b.dataset.nextStatus}});
+        await refreshAdmins();
+        render();
+        showToast('✓ 管理者設定を更新しました');
+      }catch(e){showToast(e.message||'更新できませんでした')}
+    });
   }
 
   function openEventEditor(existing=null,isCopy=false){
@@ -153,12 +343,49 @@
     if(type==='event'&&(!data.date||!data.venue)){showToast('開催日と会場名は必須です');return}
     if(type==='other'&&!data.title){showToast('タイトルは必須です');return}
 
-    // If an event was recreated after browser storage loss, keep the stable existing id
-    // when date + prefecture + venue are the same. This preserves personal-data linkage.
     if(type==='event'){
       const norm=s=>String(s||'').replace(/[\s　・]/g,'').toLowerCase();
       const same=state.events.find(x=>x.id!==data.id && x.date===data.date && x.prefecture===data.prefecture && norm(x.venue)===norm(data.venue));
       if(same) data={...data,id:same.id};
+    }
+
+    if(SECURE_ADMIN){
+      if(!state.auth.user){showToast('管理者ログインが必要です');return}
+      if(!confirm('この内容を公開しますか？\n見るだけ版と入力版の両方へ反映されます。'))return;
+
+      const list=type==='event'?state.events:state.other;
+      const before=list.find(x=>x.id===data.id)||null;
+      const publishedAt=now();
+      const next={...data,version:(before?.version||0)+1,updatedAt:publishedAt};
+      const summary=type==='event'
+        ? `${next.date||''} ${next.prefecture||''} ${next.venue||''} を${before?'更新':'追加'}しました`
+        : `${CATEGORIES[next.category]||'OTHER'}「${next.title}」を${before?'更新':'追加'}しました`;
+      const events=type==='event'
+        ? [...state.events.filter(x=>x.id!==next.id),next].sort((a,b)=>String(a.date||'9999').localeCompare(String(b.date||'9999')))
+        : state.events;
+      const otherItems=type==='other'
+        ? [...state.other.filter(x=>x.id!==next.id),next].sort((a,b)=>String(a.date||'9999').localeCompare(String(b.date||'9999')))
+        : state.other;
+
+      try{
+        await publishToApi({summary,events,otherItems});
+        await del('adminDrafts',`${type}:${next.id}`).catch(()=>{});
+        closeSheet();
+        await load();
+        render();
+        showToast('✓ ①見るだけ版・②入力版へ公開しました');
+      }catch(e){
+        if(e.status===409){
+          showToast('他の管理者が先に更新しました。最新情報を読み込みます');
+          await syncRemoteCommonDataForAdmin();
+          await load();
+          render();
+        }else{
+          console.error(e);
+          showToast(e.message||'公開できませんでした');
+        }
+      }
+      return;
     }
 
     if(!confirm('この内容を公開用データとして保存しますか？\n保存後、利用者全体へ反映するには common-data.json の書き出しとGitHubへのPushが必要です。'))return;
@@ -169,15 +396,62 @@
     await put('commonMeta',{key:'publish',version,updatedAt:publishedAt,summary});
     await put('commonHistory',{id:uid('history'),version,publishedAt,entityType:type,entityId:next.id,summary,before:before?structuredClone(before):null,after:structuredClone(next)});
     await del('adminDrafts',`${type}:${next.id}`).catch(()=>{}); closeSheet(); await load(); render();
-    if('BroadcastChannel' in globalThis){const ch=new BroadcastChannel('maanote-common-data');ch.postMessage({version});ch.close()}
     showToast('✓ 保存しました。配信用JSONを更新してください');
   }
 
-  async function rollback(historyId){const rec=state.history.find(x=>x.id===historyId);if(!rec?.before)return;if(!confirm('この変更前の内容を、新しいバージョンとして再公開しますか？'))return;const store=rec.entityType==='event'?'commonEvents':'commonOtherItems';const current=(rec.entityType==='event'?state.events:state.other).find(x=>x.id===rec.entityId)||null;const meta=(await all('commonMeta')).find(x=>x.key==='publish')||{version:0};const version=Number(meta.version||0)+1;const publishedAt=now();const restored={...structuredClone(rec.before),version:(current?.version||0)+1,updatedAt:publishedAt};await put(store,restored);const summary=`${rec.summary} の変更前へロールバック`;await put('commonMeta',{key:'publish',version,updatedAt:publishedAt,summary});await put('commonHistory',{id:uid('history'),version,publishedAt,entityType:rec.entityType,entityId:rec.entityId,summary,before:current?structuredClone(current):null,after:structuredClone(restored)});await load();render();if('BroadcastChannel' in globalThis){const ch=new BroadcastChannel('maanote-common-data');ch.postMessage({version});ch.close()}showToast('✓ ロールバックを公開しました')}
+  async function rollback(historyId){
+    const rec=state.history.find(x=>x.id===historyId);
+    if(!rec?.before)return;
+    if(!confirm('この変更前の内容を、新しいバージョンとして再公開しますか？'))return;
+
+    if(SECURE_ADMIN){
+      const current=(rec.entityType==='event'?state.events:state.other).find(x=>x.id===rec.entityId)||null;
+      const restored={...structuredClone(rec.before),version:(current?.version||0)+1,updatedAt:now()};
+      const summary=`${rec.summary} の変更前へロールバック`;
+      const events=rec.entityType==='event'
+        ? [...state.events.filter(x=>x.id!==rec.entityId),restored].sort((a,b)=>String(a.date||'9999').localeCompare(String(b.date||'9999')))
+        : state.events;
+      const otherItems=rec.entityType==='other'
+        ? [...state.other.filter(x=>x.id!==rec.entityId),restored].sort((a,b)=>String(a.date||'9999').localeCompare(String(b.date||'9999')))
+        : state.other;
+      try{
+        await publishToApi({summary,events,otherItems});
+        await load();render();showToast('✓ ロールバックを公開しました');
+      }catch(e){showToast(e.status===409?'他の管理者が先に更新しました':'ロールバックできませんでした')}
+      return;
+    }
+
+    const store=rec.entityType==='event'?'commonEvents':'commonOtherItems';
+    const current=(rec.entityType==='event'?state.events:state.other).find(x=>x.id===rec.entityId)||null;
+    const meta=(await all('commonMeta')).find(x=>x.key==='publish')||{version:0};
+    const version=Number(meta.version||0)+1, publishedAt=now();
+    const restored={...structuredClone(rec.before),version:(current?.version||0)+1,updatedAt:publishedAt};
+    await put(store,restored);
+    const summary=`${rec.summary} の変更前へロールバック`;
+    await put('commonMeta',{key:'publish',version,updatedAt:publishedAt,summary});
+    await put('commonHistory',{id:uid('history'),version,publishedAt,entityType:rec.entityType,entityId:rec.entityId,summary,before:current?structuredClone(current):null,after:structuredClone(restored)});
+    await load();render();showToast('✓ ロールバックを公開しました');
+  }
 
   function exportCommon(){const payload={format:'MaaNote-common-data',version:1,publishMeta:state.meta,events:state.events,otherItems:state.other,history:state.history,exportedAt:now()};const blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'});const u=URL.createObjectURL(blob),a=document.createElement('a');a.href=u;a.download='common-data.json';document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),1000);showToast('common-data.json を書き出しました')}
   let tt;function showToast(msg){clearTimeout(tt);toast.textContent=msg;toast.classList.add('show');tt=setTimeout(()=>toast.classList.remove('show'),1300)}
 
-  async function boot(){try{state.db=await openDB();await recoverAdminEmergencyBackup();await load();scheduleAdminBackup();render();if(state.recovered)setTimeout(()=>showToast('端末バックアップから管理者データを自動復旧しました'),250)}catch(e){console.error(e);app.innerHTML=shell('<div class="empty">管理者データ領域を開けませんでした。</div>')}}
+  async function boot(){
+    try{
+      state.db=await openDB();
+      await recoverAdminEmergencyBackup();
+      if(SECURE_ADMIN){
+        initGoogleLogin();
+        return;
+      }
+      await load();
+      scheduleAdminBackup();
+      render();
+      if(state.recovered)setTimeout(()=>showToast('端末バックアップから管理者データを自動復旧しました'),250);
+    }catch(e){
+      console.error(e);
+      app.innerHTML=`<main class="shell"><div class="empty">管理者データ領域を開けませんでした。</div></main>`;
+    }
+  }
   boot();
 })();

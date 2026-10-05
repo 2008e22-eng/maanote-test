@@ -1,14 +1,15 @@
-const CACHE = 'maanote-v0.9-stage11-20261005';
+const CACHE = 'maanote-v0.9-stage12-20261005';
 const APP_SHELL = [
   './',
   './index.html',
+  './runtime-config.js',
   './view/',
   './view/index.html',
   './view/manifest.webmanifest',
   './admin/',
   './admin/index.html',
-  './styles.css?v=0.9-stage11',
-  './app.js?v=0.9-stage11',
+  './styles.css?v=0.9-stage12',
+  './app.js?v=0.9-stage12',
   './manifest.webmanifest',
   './icon.svg',
   './icon-192.png',
@@ -16,13 +17,13 @@ const APP_SHELL = [
   './apple-touch-icon.png',
   './version.json',
   './admin.html',
-  './admin.css?v=0.9-stage11',
-  './admin.js?v=0.9-stage11',
+  './admin.css?v=0.9-stage12',
+  './admin.js?v=0.9-stage12',
   './common-seed.json',
   './common-data.json',
   './migrate-v96.html',
-  './migrate-v96.css?v=0.9-stage11',
-  './migrate-v96.js?v=0.9-stage11'
+  './migrate-v96.css?v=0.9-stage12',
+  './migrate-v96.js?v=0.9-stage12'
 ];
 
 self.addEventListener('install', event => {
@@ -40,6 +41,13 @@ self.addEventListener('fetch', event => {
   if (req.method !== 'GET') return;
   const url = new URL(req.url);
   if (url.origin !== self.location.origin) return;
+
+  if (url.pathname.endsWith('/runtime-config.js')) {
+    event.respondWith((async()=>{
+      try{const fresh=await fetch(req,{cache:'no-store'});if(fresh&&fresh.ok){const cache=await caches.open(CACHE);await cache.put('./runtime-config.js',fresh.clone())}return fresh}
+      catch(_){return (await caches.match('./runtime-config.js'))||new Response('',{status:504})}
+    })());return;
+  }
 
   if (url.pathname.endsWith('/common-data.json') || url.pathname.endsWith('/version.json')) {
     event.respondWith((async () => {

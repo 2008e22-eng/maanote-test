@@ -1,11 +1,13 @@
 (() => {
   'use strict';
 
-  const APP_VERSION = '0.9-stage11';
-  const APP_VERSION_LABEL = 'v0.9 Stage 11';
+  const APP_VERSION = '0.9-stage12';
+  const APP_VERSION_LABEL = 'v0.9 Stage 12';
+  const CONFIG = globalThis.MAANOTE_CONFIG || {};
+  const API_BASE = String(CONFIG.API_BASE||'').replace(/\/$/,'');
   const IS_VIEW_BUILD = location.pathname.includes('/view/');
   const IS_TEST_MODE = !IS_VIEW_BUILD && new URLSearchParams(location.search).get('test')==='1';
-  const COMMON_DATA_URL = IS_VIEW_BUILD ? '../common-data.json' : './common-data.json';
+  const COMMON_DATA_URL = API_BASE ? `${API_BASE}/api/common-data` : (IS_VIEW_BUILD ? '../common-data.json' : './common-data.json');
   const VERSION_URL = IS_VIEW_BUILD ? '../version.json' : './version.json';
   const SW_URL = IS_VIEW_BUILD ? '../sw.js' : './sw.js';
   const APP_DB_NAME = IS_VIEW_BUILD ? 'MaaNoteViewDB' : 'MaaNoteDB';
