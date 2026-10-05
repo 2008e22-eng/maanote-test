@@ -1101,3 +1101,13 @@ html, body, button, input, select, textarea { font-family: "Noto Sans JP", sans-
     letter-spacing:-0.03em;
   }
 }
+
+.drive-sync-note{
+  padding:10px 12px 12px;
+  font-size:10px;
+  line-height:1.55;
+  color:var(--muted);
+}
+
+/* Stage 13.1 auto cloud backup */
+.sheet-card-btn small{opacity:.76}

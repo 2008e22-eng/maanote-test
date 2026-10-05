@@ -1,8 +1,8 @@
 (() => {
   'use strict';
 
-  const APP_VERSION = '0.9-stage12.1';
-  const APP_VERSION_LABEL = 'v0.9 Stage 12.1';
+  const APP_VERSION = '0.9-stage13.1';
+  const APP_VERSION_LABEL = 'v0.9 Stage 13.1';
   const CONFIG = globalThis.MAANOTE_CONFIG || {};
   const API_BASE = String(CONFIG.API_BASE||'').replace(/\/$/,'');
   const IS_VIEW_BUILD = location.pathname.includes('/view/');
@@ -13,6 +13,17 @@
   const APP_DB_NAME = IS_VIEW_BUILD ? 'MaaNoteViewDB' : 'MaaNoteDB';
   const EMERGENCY_PREFIX = IS_VIEW_BUILD ? 'MaaNoteView' : 'MaaNote';
   const SHARED_LOCAL_COMMON_KEY='MaaNoteSharedCommonPreviewV1';
+  const DRIVE_CLIENT_ID=String(CONFIG.GOOGLE_CLIENT_ID||'').trim();
+  const DRIVE_SYNC_ENABLED=!IS_VIEW_BUILD && !!CONFIG.DRIVE_SYNC_ENABLED && !!DRIVE_CLIENT_ID;
+  const DRIVE_SCOPE='https://www.googleapis.com/auth/drive.appdata';
+  const DRIVE_FILE_NAME='MaaNote_personal_backup_v1.json';
+  const PERSONAL_STORES=['userEventPlans','settings','todos','personalSchedules','travelBookings','setlists','talkMemos','migrationInfo','legacyData'];
+  const DRIVE_DIRTY_KEY='MaaNoteDriveDirtyV1';
+  const DRIVE_AUTO_DELAY=9000;
+  let driveAutoTimer=null;
+  let driveAutoBackupSuspended=false;
+  let driveReconnectToastShown=false;
+
   const ACCENT = '#47B0A0';
   const OFFICIAL_URL = 'https://www.jp-r.co.jp/masaki_satou/event/006feb74b8da455d4d8e8d30b5f54904965d113acebc5cffe84c79f8d2b7cc76/';
 
@@ -168,9 +179,10 @@
     todoSelection:false,
     selectedTodoIds:new Set(),
     summaryMoneyVisible:false,
-    settings:{ mode:'personal_management', homeEventFilter:'all', headerImage:null, previewDate:null, imageQuality:'standard', fontSize:'standard', rememberEventFilter:true, lastEventFilter:'all' },
+    settings:{ mode:'personal_management', homeEventFilter:'all', headerImage:null, previewDate:null, imageQuality:'standard', fontSize:'standard', rememberEventFilter:true, lastEventFilter:'all', driveBackupMode:null },
     settingsReturnScreen:'home',
     recoveredEmergencyBackup:false,
+    drive:{accessToken:null,expiresAt:0,tokenClient:null,file:null,busy:false,error:null,needsReconnect:false},
     db:null
   };
 
@@ -260,7 +272,7 @@
   async function writeEmergencyBackup(){
     if(emergencyBackupSuspended || !state.db) return;
     try{
-      const personalStores=['userEventPlans','settings','todos','personalSchedules','travelBookings','setlists','talkMemos','migrationInfo','legacyData'];
+      const personalStores=PERSONAL_STORES;
       const commonStores=['commonEvents','commonOtherItems','commonMeta','commonHistory','adminDrafts'];
       const personal={};
       const common={};
@@ -296,12 +308,12 @@
     try{
       const personalBackup=IS_VIEW_BUILD?null:parseEmergencyBackup(EMERGENCY_PERSONAL_KEY);
       if(personalBackup?.stores){
-        const personalStores=['userEventPlans','settings','todos','personalSchedules','travelBookings','setlists','talkMemos','migrationInfo','legacyData'];
+        const personalStores=PERSONAL_STORES;
         for(const store of personalStores){
           const currentRows=await idbGetAll(store);
           const backupRows=personalBackup.stores[store]||[];
           if(!currentRows.length && backupRows.length){
-            for(const row of backupRows) await idbPut(store,structuredClone(row),{skipEmergencyBackup:true});
+            for(const row of backupRows) await idbPut(store,structuredClone(row),{skipEmergencyBackup:true,skipAutoDriveBackup:true});
             restored=true;
           }
         }
@@ -314,7 +326,7 @@
           const currentRows=await idbGetAll(store);
           const backupRows=commonBackup.stores[store]||[];
           if(!currentRows.length && backupRows.length){
-            for(const row of backupRows) await idbPut(store,structuredClone(row),{skipEmergencyBackup:true});
+            for(const row of backupRows) await idbPut(store,structuredClone(row),{skipEmergencyBackup:true,skipAutoDriveBackup:true});
             restored=true;
           }
         }
@@ -335,12 +347,22 @@
       req.onsuccess=()=>resolve(req.result||[]); req.onerror=()=>reject(req.error);
     });
   }
-  function idbPut(store,value,{skipEmergencyBackup=false}={}){
+  function idbClear(store){
+    return new Promise((resolve,reject)=>{
+      const tx=state.db.transaction(store,'readwrite');
+      const req=tx.objectStore(store).clear();
+      req.onsuccess=()=>resolve();
+      req.onerror=()=>reject(req.error);
+    });
+  }
+
+  function idbPut(store,value,{skipEmergencyBackup=false,skipAutoDriveBackup=false}={}){
     return new Promise((resolve,reject)=>{
       const tx=state.db.transaction(store,'readwrite');
       tx.objectStore(store).put(value);
       tx.oncomplete=()=>{
         if(!skipEmergencyBackup) scheduleEmergencyBackup();
+        if(!skipAutoDriveBackup) markDriveBackupDirty(store,value);
         resolve();
       };
       tx.onerror=()=>reject(tx.error);
@@ -1959,6 +1981,461 @@
     window.scrollTo(0,0);
   }
 
+  function isDriveInternalSetting(value){
+    const key=String(value?.key||'');
+    return key.startsWith('drive');
+  }
+
+  function isAutoDriveMode(){
+    return !IS_VIEW_BUILD && DRIVE_SYNC_ENABLED && state.settings.mode==='personal_management' && state.settings.driveBackupMode==='auto';
+  }
+
+  function driveBackupDirty(){
+    return !!localStorage.getItem(DRIVE_DIRTY_KEY);
+  }
+
+  function markDriveBackupDirty(store,value){
+    if(IS_VIEW_BUILD || driveAutoBackupSuspended) return;
+    if(!PERSONAL_STORES.includes(store)) return;
+    if(store==='settings' && isDriveInternalSetting(value)) return;
+    try{localStorage.setItem(DRIVE_DIRTY_KEY,new Date().toISOString())}catch(_){}
+    scheduleAutoDriveBackup();
+  }
+
+  function clearDriveBackupDirty(){
+    try{localStorage.removeItem(DRIVE_DIRTY_KEY)}catch(_){}
+  }
+
+  function meaningfulPersonalCount(){
+    return Object.values(state.userPlans).filter(x=>!x.deleted).length
+      + state.todos.filter(x=>!x.deleted).length
+      + state.personalSchedules.filter(x=>!x.deleted).length
+      + state.travelBookings.filter(x=>!x.deleted).length
+      + state.setlists.filter(x=>!x.deleted).length
+      + state.talkMemos.filter(x=>!x.deleted).length;
+  }
+
+  function scheduleAutoDriveBackup(delay=DRIVE_AUTO_DELAY){
+    if(!isAutoDriveMode() || driveAutoBackupSuspended || !navigator.onLine) return;
+    clearTimeout(driveAutoTimer);
+    driveAutoTimer=setTimeout(()=>runAutoDriveBackup(),delay);
+  }
+
+  async function runAutoDriveBackup(){
+    if(!isAutoDriveMode() || driveAutoBackupSuspended || !driveBackupDirty() || state.drive.busy || !navigator.onLine) return;
+    if(!driveConnected()){
+      state.drive.needsReconnect=true;
+      if(!driveReconnectToastShown){
+        driveReconnectToastShown=true;
+        showToast('Drive自動バックアップは再接続後に続行します');
+      }
+      if(state.screen==='settings') renderSettings();
+      return;
+    }
+    await uploadDriveBackup({silent:true});
+  }
+
+  async function resumeAutoDriveBackup(){
+    if(!isAutoDriveMode() || !navigator.onLine) return;
+    try{
+      if(!driveConnected()){
+        // Try to resume without asking for consent again.
+        // Browsers may block this; in that case Settings shows a one-tap reconnect.
+        await requestDriveToken({prompt:''});
+      }
+      state.drive.needsReconnect=false;
+      driveReconnectToastShown=false;
+      await findDriveBackup();
+      if(driveBackupDirty()) scheduleAutoDriveBackup(1200);
+    }catch(_){
+      state.drive.needsReconnect=true;
+      if(state.screen==='settings') renderSettings();
+    }
+  }
+
+  function maybeOfferBackupChoice(){
+    if(IS_VIEW_BUILD || !DRIVE_SYNC_ENABLED || state.settings.mode!=='personal_management' || state.settings.driveBackupMode) return;
+    showSheet(`<div class="sheet-head"><div class="sheet-title">データのバックアップ</div></div>
+      <div class="settings-info-text">個人データの保存方法を選んでください。あとから設定で変更できます。</div>
+      <button class="sheet-card-btn primary full-width-btn" data-backup-choice-auto>
+        Google Driveに自動バックアップ
+        <small style="display:block;margin-top:3px;font-weight:500">おすすめ・普段は操作不要</small>
+      </button>
+      <button class="sheet-card-btn full-width-btn" data-backup-choice-local>
+        この端末だけに保存
+        <small style="display:block;margin-top:3px;font-weight:500">Google連携なしで利用</small>
+      </button>
+      <div class="form-help">どちらを選んでも、普段の入力はまずこの端末へ保存されるので、圏外でも使えます。</div>`);
+    sheetRoot.querySelector('[data-backup-choice-auto]').onclick=async()=>{
+      await saveSetting('driveBackupMode','auto');
+      closeSheet();
+      await connectDrive({enableAuto:true,firstSetup:true});
+    };
+    sheetRoot.querySelector('[data-backup-choice-local]').onclick=async()=>{
+      await saveSetting('driveBackupMode','local');
+      closeSheet();
+      showToast('この端末だけに保存します');
+    };
+  }
+
+  function showExistingDriveBackupChoice(){
+    showSheet(`<div class="sheet-head"><div class="sheet-title">Driveにバックアップがあります</div></div>
+      <div class="settings-info-text">このGoogleアカウントには、すでにMaaNoteのバックアップがあります。安全のため自動上書きせず、どちらを使うか確認します。</div>
+      <button class="sheet-card-btn primary full-width-btn" data-drive-use-local>この端末のデータをDriveへ保存</button>
+      <button class="sheet-card-btn full-width-btn" data-drive-use-cloud>Driveのデータをこの端末へ復元</button>
+      <button class="sheet-card-btn full-width-btn" data-sheet-close>今は何もしない</button>`);
+    sheetRoot.querySelector('[data-drive-use-local]').onclick=async()=>{
+      closeSheet();
+      try{
+        try{localStorage.setItem(DRIVE_DIRTY_KEY,new Date().toISOString())}catch(_){}
+        await uploadDriveBackup({silent:false});
+      }catch(_){}
+    };
+    sheetRoot.querySelector('[data-drive-use-cloud]').onclick=async()=>{
+      closeSheet();
+      await openDriveRestoreSheet();
+    };
+  }
+
+  function waitForGoogleIdentity(timeoutMs=8000){
+    return new Promise((resolve,reject)=>{
+      if(globalThis.google?.accounts?.oauth2) return resolve();
+      const started=Date.now();
+      const timer=setInterval(()=>{
+        if(globalThis.google?.accounts?.oauth2){
+          clearInterval(timer);
+          resolve();
+        }else if(Date.now()-started>timeoutMs){
+          clearInterval(timer);
+          reject(new Error('Googleログインを読み込めませんでした'));
+        }
+      },100);
+    });
+  }
+
+  function driveConnected(){
+    return !!(state.drive.accessToken && state.drive.expiresAt>Date.now()+30000);
+  }
+
+  async function requestDriveToken({prompt=''}={}){
+    if(!DRIVE_SYNC_ENABLED) throw new Error('Google Drive連携が未設定です');
+    if(driveConnected()) return state.drive.accessToken;
+    await waitForGoogleIdentity();
+
+    if(!state.drive.tokenClient){
+      state.drive.tokenClient=google.accounts.oauth2.initTokenClient({
+        client_id:DRIVE_CLIENT_ID,
+        scope:DRIVE_SCOPE,
+        callback:()=>{}
+      });
+    }
+
+    return await new Promise((resolve,reject)=>{
+      state.drive.tokenClient.callback=resp=>{
+        if(resp?.error){
+          reject(new Error(resp.error_description||resp.error));
+          return;
+        }
+        state.drive.accessToken=resp.access_token;
+        state.drive.expiresAt=Date.now()+(Number(resp.expires_in||3600)*1000);
+        state.drive.error=null;
+        resolve(state.drive.accessToken);
+      };
+      state.drive.tokenClient.error_callback=err=>reject(new Error(err?.type||'Google Driveへの接続をキャンセルしました'));
+      state.drive.tokenClient.requestAccessToken({prompt});
+    });
+  }
+
+  async function driveFetch(url,options={}){
+    const token=await requestDriveToken({prompt:''});
+    const headers={...(options.headers||{}),Authorization:`Bearer ${token}`};
+    const res=await fetch(url,{...options,headers});
+    if(res.status===401){
+      state.drive.accessToken=null;
+      state.drive.expiresAt=0;
+      throw new Error('Google Driveの接続期限が切れました。もう一度接続してください');
+    }
+    if(!res.ok){
+      const detail=await res.json().catch(()=>null);
+      throw new Error(detail?.error?.message||`Google Drive API ${res.status}`);
+    }
+    return res;
+  }
+
+  async function findDriveBackup(){
+    const q=`name = '${DRIVE_FILE_NAME}' and trashed = false`;
+    const params=new URLSearchParams({
+      spaces:'appDataFolder',
+      q,
+      fields:'files(id,name,modifiedTime,size)',
+      orderBy:'modifiedTime desc',
+      pageSize:'10'
+    });
+    const res=await driveFetch(`https://www.googleapis.com/drive/v3/files?${params}`);
+    const data=await res.json();
+    state.drive.file=(data.files||[])[0]||null;
+    return state.drive.file;
+  }
+
+  async function buildPersonalBackup(includeImages=true){
+    const travel=state.travelBookings.filter(x=>!x.deleted).map(x=>includeImages?structuredClone(x):{...x,images:(x.images||[]).map(img=>({id:img.id,name:img.name,createdAt:img.createdAt,dataUrl:null}))});
+    const settings={...state.settings};
+    if(!includeImages) settings.headerImage=null;
+    delete settings.driveLastBackupAt;
+    delete settings.driveLastRestoreAt;
+    const rawLegacyData=await idbGetAll('legacyData').catch(()=>[]);
+    const legacyData=includeImages?rawLegacyData:rawLegacyData.map(x=>({...x,orphanBookingImages:(x.orphanBookingImages||[]).map(img=>({...img,dataUrl:null}))}));
+    const migrationInfo=await idbGetAll('migrationInfo').catch(()=>[]);
+    return {
+      format:'MaaNote-export',
+      version:1,
+      appVersion:APP_VERSION,
+      exportedAt:new Date().toISOString(),
+      includeImages,
+      userEventPlans:Object.values(state.userPlans).filter(x=>!x.deleted),
+      todos:state.todos.filter(x=>!x.deleted),
+      personalSchedules:state.personalSchedules.filter(x=>!x.deleted),
+      travelBookings:travel,
+      setlists:state.setlists.filter(x=>!x.deleted),
+      talkMemos:state.talkMemos.filter(x=>!x.deleted),
+      settings,
+      legacyData,
+      migrationInfo
+    };
+  }
+
+  function backupSummary(payload){
+    return {
+      plans:Array.isArray(payload?.userEventPlans)?payload.userEventPlans.length:0,
+      todos:Array.isArray(payload?.todos)?payload.todos.length:0,
+      travel:Array.isArray(payload?.travelBookings)?payload.travelBookings.length:0,
+      schedules:Array.isArray(payload?.personalSchedules)?payload.personalSchedules.length:0
+    };
+  }
+
+  function downloadBackupPayload(payload,filename){
+    const blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'});
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement('a');
+    a.href=url;
+    a.download=filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(()=>URL.revokeObjectURL(url),1500);
+  }
+
+  async function uploadDriveBackup({silent=false}={}){
+    if(state.drive.busy) return false;
+    if(!navigator.onLine){
+      if(!silent) showToast('Google Driveはオンライン時に利用できます');
+      return false;
+    }
+    if(silent && !driveConnected()){
+      state.drive.needsReconnect=true;
+      return false;
+    }
+    state.drive.busy=true;
+    try{
+      await requestDriveToken({prompt:driveConnected()?'':'consent'});
+      state.drive.needsReconnect=false;
+      driveReconnectToastShown=false;
+      let file=await findDriveBackup();
+      const payload=await buildPersonalBackup(true);
+      const content=JSON.stringify(payload);
+      let res;
+
+      if(file?.id){
+        res=await driveFetch(`https://www.googleapis.com/upload/drive/v3/files/${encodeURIComponent(file.id)}?uploadType=media&fields=id,name,modifiedTime,size`,{
+          method:'PATCH',
+          headers:{'Content-Type':'application/json; charset=UTF-8'},
+          body:content
+        });
+      }else{
+        const boundary=`maanote_${Date.now()}`;
+        const metadata=JSON.stringify({name:DRIVE_FILE_NAME,parents:['appDataFolder'],mimeType:'application/json'});
+        const multipart=[
+          `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${metadata}\r\n`,
+          `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${content}\r\n`,
+          `--${boundary}--`
+        ].join('');
+        res=await driveFetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,name,modifiedTime,size',{
+          method:'POST',
+          headers:{'Content-Type':`multipart/related; boundary=${boundary}`},
+          body:multipart
+        });
+      }
+
+      state.drive.file=await res.json();
+      clearDriveBackupDirty();
+      await saveSetting('driveLastBackupAt',new Date().toISOString());
+      state.drive.error=null;
+      if(state.screen==='settings') renderSettings();
+      if(!silent) showToast('✓ Google Driveへバックアップしました');
+      return true;
+    }catch(err){
+      console.error(err);
+      state.drive.error=err.message;
+      state.drive.needsReconnect=!driveConnected();
+      if(!silent) showToast(err.message||'Google Driveへバックアップできませんでした');
+      return false;
+    }finally{
+      state.drive.busy=false;
+    }
+  }
+
+  async function connectDrive({enableAuto=false,firstSetup=false}={}){
+    if(!DRIVE_SYNC_ENABLED){openSettingsInfo('driveSetup');return;}
+    if(!navigator.onLine){showToast('Google Driveはオンライン時に利用できます');return;}
+    state.drive.busy=true;
+    try{
+      await requestDriveToken({prompt:'consent'});
+      state.drive.needsReconnect=false;
+      driveReconnectToastShown=false;
+      const file=await findDriveBackup();
+      state.drive.error=null;
+      if(enableAuto && state.settings.driveBackupMode!=='auto') await saveSetting('driveBackupMode','auto');
+
+      const localCount=meaningfulPersonalCount();
+      const hasPreviousLocalDrive=!!state.settings.driveLastBackupAt;
+
+      state.drive.busy=false;
+
+      if(file && firstSetup && !hasPreviousLocalDrive){
+        if(localCount===0){
+          await openDriveRestoreSheet();
+        }else{
+          showExistingDriveBackupChoice();
+        }
+        return;
+      }
+
+      if(!file || !hasPreviousLocalDrive){
+        try{localStorage.setItem(DRIVE_DIRTY_KEY,new Date().toISOString())}catch(_){}
+        await uploadDriveBackup({silent:true});
+      }else if(driveBackupDirty()){
+        scheduleAutoDriveBackup(600);
+      }
+
+      if(state.screen==='settings') renderSettings();
+      showToast('✓ Google Drive自動バックアップを有効にしました');
+    }catch(err){
+      state.drive.error=err.message;
+      state.drive.needsReconnect=true;
+      if(state.screen==='settings') renderSettings();
+      showToast(err.message||'Google Driveへ接続できませんでした');
+    }finally{
+      state.drive.busy=false;
+    }
+  }
+
+  function disconnectDrive(){
+    const token=state.drive.accessToken;
+    const finish=async()=>{
+      state.drive.accessToken=null;
+      state.drive.expiresAt=0;
+      state.drive.tokenClient=null;
+      state.drive.file=null;
+      state.drive.error=null;
+      state.drive.needsReconnect=false;
+      clearTimeout(driveAutoTimer);
+      await saveSetting('driveBackupMode','local');
+      if(state.screen==='settings') renderSettings();
+      showToast('この端末だけに保存する設定へ変更しました');
+    };
+    if(token && globalThis.google?.accounts?.oauth2?.revoke){
+      try{google.accounts.oauth2.revoke(token,finish)}catch(_){finish()}
+    }else finish();
+  }
+
+  async function downloadDriveBackup(){
+    if(!navigator.onLine){showToast('Google Driveはオンライン時に利用できます');return null;}
+    await requestDriveToken({prompt:driveConnected()?'':'consent'});
+    const file=await findDriveBackup();
+    if(!file?.id) throw new Error('Google DriveにMaaNoteのバックアップがありません');
+    const res=await driveFetch(`https://www.googleapis.com/drive/v3/files/${encodeURIComponent(file.id)}?alt=media`);
+    const payload=await res.json();
+    if(payload?.format!=='MaaNote-export' || !Array.isArray(payload.userEventPlans)){
+      throw new Error('MaaNoteのバックアップとして読み込めません');
+    }
+    return payload;
+  }
+
+  async function importPersonalBackup(payload){
+    if(payload?.format!=='MaaNote-export') throw new Error('MaaNoteバックアップではありません');
+
+    const keepBackupMode=state.settings.driveBackupMode||'auto';
+    driveAutoBackupSuspended=true;
+    const arrays={
+      userEventPlans:payload.userEventPlans||[],
+      todos:payload.todos||[],
+      personalSchedules:payload.personalSchedules||[],
+      travelBookings:payload.travelBookings||[],
+      setlists:payload.setlists||[],
+      talkMemos:payload.talkMemos||[],
+      migrationInfo:payload.migrationInfo||[],
+      legacyData:payload.legacyData||[]
+    };
+
+    await writeEmergencyBackup();
+    emergencyBackupSuspended=true;
+    try{
+      for(const store of PERSONAL_STORES) await idbClear(store);
+      for(const [store,rows] of Object.entries(arrays)){
+        for(const row of rows) await idbPut(store,structuredClone(row),{skipEmergencyBackup:true,skipAutoDriveBackup:true});
+      }
+      const settings=payload.settings&&typeof payload.settings==='object'?payload.settings:{};
+      for(const [key,value] of Object.entries(settings)){
+        await idbPut('settings',{key,value},{skipEmergencyBackup:true,skipAutoDriveBackup:true});
+      }
+      await idbPut('settings',{key:'driveBackupMode',value:keepBackupMode},{skipEmergencyBackup:true,skipAutoDriveBackup:true});
+      await idbPut('settings',{key:'driveLastRestoreAt',value:new Date().toISOString()},{skipEmergencyBackup:true,skipAutoDriveBackup:true});
+      await idbPut('settings',{key:'driveLastBackupAt',value:payload.exportedAt||new Date().toISOString()},{skipEmergencyBackup:true,skipAutoDriveBackup:true});
+      clearDriveBackupDirty();
+    }finally{
+      emergencyBackupSuspended=false;
+      driveAutoBackupSuspended=false;
+    }
+    await writeEmergencyBackup();
+  }
+
+  async function openDriveRestoreSheet(){
+    if(state.drive.busy) return;
+    state.drive.busy=true;
+    try{
+      const payload=await downloadDriveBackup();
+      const s=backupSummary(payload);
+      const date=payload.exportedAt?new Date(payload.exportedAt).toLocaleString('ja-JP'):'不明';
+      showSheet(`<div class="sheet-head"><div class="sheet-title">Google Driveから復元</div><button class="text-btn" data-sheet-close>閉じる</button></div>
+        <div class="settings-info-text">Driveのバックアップで、この端末の個人データを置き換えます。</div>
+        <div class="card section-card">
+          <div class="settings-status-row"><span><strong>バックアップ日時</strong></span><b>${escapeHTML(date)}</b></div>
+          <div class="settings-status-row"><span><strong>イベント入力</strong></span><b>${s.plans}件</b></div>
+          <div class="settings-status-row"><span><strong>TODO</strong></span><b>${s.todos}件</b></div>
+          <div class="settings-status-row"><span><strong>旅程</strong></span><b>${s.travel}件</b></div>
+        </div>
+        <div class="form-help">復元前に、現在の端末データを画像込みJSONとして自動で書き出します。管理者配信情報は置き換えません。</div>
+        <button class="sheet-card-btn primary full-width-btn" data-drive-restore-confirm>このバックアップから復元</button>`);
+      sheetRoot.querySelector('[data-drive-restore-confirm]').onclick=async()=>{
+        try{
+          const current=await buildPersonalBackup(true);
+          downloadBackupPayload(current,`MaaNote_before_drive_restore_${fmtISODate(new Date())}.json`);
+          await importPersonalBackup(payload);
+          showToast('✓ Google Driveから復元しました');
+          setTimeout(()=>location.reload(),500);
+        }catch(err){
+          console.error(err);
+          showToast(err.message||'復元できませんでした');
+        }
+      };
+    }catch(err){
+      console.error(err);
+      showToast(err.message||'Google Driveから読み込めませんでした');
+    }finally{
+      state.drive.busy=false;
+    }
+  }
+
   function renderSettings(){
     const h=state.settings.headerImage;
     const swReady=!!navigator.serviceWorker?.controller;
@@ -2029,6 +2506,25 @@
           <button class="settings-nav-row" data-export-data="all"><span><strong>画像込みで書き出す</strong><small>ファイルサイズが大きくなる場合があります</small></span><span class="chev">›</span></button>
         </section>
 
+        <div class="settings-section-title">バックアップ</div>
+        <section class="card settings-card">
+          <div class="settings-status-row"><span><strong>保存方法</strong><small>普段の入力はまず端末へ保存されます</small></span><b>${state.settings.driveBackupMode==='auto'?'Google Drive自動':'この端末だけ'}</b></div>
+          ${state.settings.driveBackupMode==='auto'?`
+            <div class="settings-status-row"><span><strong>自動バックアップ</strong><small>${state.drive.needsReconnect?'再接続すると自動で再開します':driveBackupDirty()?'次回オンライン時に自動保存':'変更時に自動保存'}</small></span><b class="${driveConnected()?'ok':''}">${!DRIVE_SYNC_ENABLED?'設定待ち':driveConnected()?'接続中':state.drive.needsReconnect?'要再接続':'待機中'}</b></div>
+            <div class="settings-status-row"><span><strong>最終バックアップ</strong><small>MaaNote専用のDrive領域</small></span><b>${state.drive.file?.modifiedTime?new Date(state.drive.file.modifiedTime).toLocaleDateString('ja-JP'):state.settings.driveLastBackupAt?new Date(state.settings.driveLastBackupAt).toLocaleDateString('ja-JP'):'—'}</b></div>
+          `:''}
+          ${!DRIVE_SYNC_ENABLED
+            ?`<button class="settings-nav-row" data-drive-setup><span><strong>Google Drive連携を設定</strong><small>Google OAuth設定後に利用できます</small></span><span class="chev">›</span></button>`
+            :state.settings.driveBackupMode!=='auto'
+              ?`<button class="settings-nav-row" data-drive-enable-auto><span><strong>Google Driveに自動バックアップ</strong><small>初回だけGoogleアカウントを選択</small></span><span class="chev">›</span></button>`
+              :!driveConnected()
+                ?`<button class="settings-nav-row" data-drive-connect><span><strong>Google Driveに再接続</strong><small>接続後は自動バックアップに戻ります</small></span><span class="chev">›</span></button>`
+                :`<button class="settings-nav-row" data-drive-backup><span><strong>今すぐバックアップ</strong><small>通常は押さなくても自動保存されます</small></span><span class="chev">›</span></button>
+                  <button class="settings-nav-row" data-drive-restore><span><strong>Google Driveから復元</strong><small>端末変更・データ復旧用</small></span><span class="chev">›</span></button>
+                  <button class="settings-nav-row" data-drive-disconnect><span><strong>この端末だけに保存する</strong><small>Drive上の既存バックアップは削除しません</small></span><span class="chev">›</span></button>`}
+          <div class="drive-sync-note">Google Driveを選んだ場合、最初の接続後はCD・TODO・旅程などの変更を自動でバックアップします。Googleの認証期限などで再接続が必要になることがあります。</div>
+        </section>
+
         <div class="settings-section-title">ヘルプ・情報</div>
         <section class="card settings-card">
           <button class="settings-nav-row" data-settings-info="offline"><span><strong>オフラインでできること</strong><small>圏外時の動作を確認</small></span><span class="chev">›</span></button>
@@ -2061,7 +2557,7 @@
 
   function bindSettings(){
     document.querySelector('[data-settings-back]').onclick=settingsBack;
-    const mode=document.querySelector('[data-setting-mode]'); if(mode)mode.onchange=async()=>{await saveSetting('mode',mode.value);showToast('✓ 利用モードを変更しました');};
+    const mode=document.querySelector('[data-setting-mode]'); if(mode)mode.onchange=async()=>{await saveSetting('mode',mode.value);showToast('✓ 利用モードを変更しました');if(mode.value==='personal_management')setTimeout(maybeOfferBackupChoice,150);};
     const hf=document.querySelector('[data-setting-home-filter]'); if(hf)hf.onchange=async()=>{await saveSetting('homeEventFilter',hf.value);showToast('✓ 保存しました');};
     const rf=document.querySelector('[data-setting-remember-filter]'); if(rf)rf.onchange=async()=>{await saveSetting('rememberEventFilter',rf.checked);if(rf.checked)await saveSetting('lastEventFilter',state.eventFilter);showToast('✓ 保存しました');};
     const fs=document.querySelector('[data-setting-font-size]'); if(fs)fs.onchange=async()=>{await saveSetting('fontSize',fs.value);showToast('✓ 文字サイズを変更しました');};
@@ -2075,32 +2571,30 @@
       showToast(result.updated?'✓ 配信情報を更新しました':'✓ 配信情報は最新です');
     };
     const file=document.querySelector('[data-header-file]'); const pickHeader=document.querySelector('[data-pick-header]'); if(file&&pickHeader)pickHeader.onclick=()=>file.click();
-    file.onchange=async()=>{if(!file.files?.[0])return;const data=await resizeImage(file.files[0]);await saveSetting('headerImage',data);renderSettings();showToast('✓ ヘッダー画像を保存しました');};
+    if(file)file.onchange=async()=>{if(!file.files?.[0])return;const data=await resizeImage(file.files[0]);await saveSetting('headerImage',data);renderSettings();showToast('✓ ヘッダー画像を保存しました');};
     const del=document.querySelector('[data-delete-header]'); if(del)del.onclick=async()=>{if(!state.settings.headerImage)return;await saveSetting('headerImage',null);renderSettings();showToast('✓ ヘッダー画像を削除しました');};
     document.querySelectorAll('[data-export-data]').forEach(b=>b.onclick=()=>exportPersonalData(b.dataset.exportData==='all'));
+    document.querySelector('[data-drive-setup]')?.addEventListener('click',()=>openSettingsInfo('driveSetup'));
+    document.querySelector('[data-drive-connect]')?.addEventListener('click',()=>connectDrive({enableAuto:true,firstSetup:false}));
+    document.querySelector('[data-drive-enable-auto]')?.addEventListener('click',async()=>{await saveSetting('driveBackupMode','auto');await connectDrive({enableAuto:true,firstSetup:true});});
+    document.querySelector('[data-drive-backup]')?.addEventListener('click',uploadDriveBackup);
+    document.querySelector('[data-drive-restore]')?.addEventListener('click',openDriveRestoreSheet);
+    document.querySelector('[data-drive-disconnect]')?.addEventListener('click',disconnectDrive);
     document.querySelectorAll('[data-settings-info]').forEach(b=>b.onclick=()=>openSettingsInfo(b.dataset.settingsInfo));
     const checkUpdate=document.querySelector('[data-check-update]'); if(checkUpdate)checkUpdate.onclick=checkForAppUpdate;
   }
 
   async function exportPersonalData(includeImages=false){
-    const travel=state.travelBookings.filter(x=>!x.deleted).map(x=>includeImages?x:{...x,images:(x.images||[]).map(img=>({id:img.id,name:img.name,createdAt:img.createdAt,dataUrl:null}))});
-    const settings={...state.settings}; if(!includeImages)settings.headerImage=null;
-    const rawLegacyData=await idbGetAll('legacyData').catch(()=>[]);
-    const legacyData=includeImages?rawLegacyData:rawLegacyData.map(x=>({...x,orphanBookingImages:(x.orphanBookingImages||[]).map(img=>({...img,dataUrl:null}))}));
-    const migrationInfo=await idbGetAll('migrationInfo').catch(()=>[]);
-    const payload={
-      format:'MaaNote-export',version:1,appVersion:APP_VERSION,exportedAt:new Date().toISOString(),includeImages,
-      userEventPlans:Object.values(state.userPlans).filter(x=>!x.deleted),todos:state.todos.filter(x=>!x.deleted),personalSchedules:state.personalSchedules.filter(x=>!x.deleted),travelBookings:travel,setlists:state.setlists.filter(x=>!x.deleted),talkMemos:state.talkMemos.filter(x=>!x.deleted),settings,legacyData,migrationInfo
-    };
-    const blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'}); const url=URL.createObjectURL(blob); const a=document.createElement('a');
-    a.href=url; a.download=`MaaNote_backup_${fmtISODate(new Date())}${includeImages?'_with_images':''}.json`; document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(url),1500);
+    const payload=await buildPersonalBackup(includeImages);
+    downloadBackupPayload(payload,`MaaNote_backup_${fmtISODate(new Date())}${includeImages?'_with_images':''}.json`);
     showToast(includeImages?'画像込みデータを書き出しました':'データを書き出しました');
   }
 
   function openSettingsInfo(kind){
     const map={
-      offline:['オフラインでできること','一度オンラインでMaaNoteを読み込んだ後は、ホーム・イベント・予定・TODO・旅程・セトリ・話したいことメモ・集計を端末保存データで確認できます。圏外でも入力内容は端末へ保存されます。公式ページ、地図、将来のDrive同期やAI解析など通信が必要な機能はオンライン時のみ利用できます。'],
-      privacy:['データの取り扱い','v0.9では個人データをこの端末のIndexedDBに保存します。予約画像やホームヘッダー画像も端末保存です。画像を追加しただけで外部AIへ送信する処理はありません。ブラウザやOS側でサイトデータを削除すると端末データも消える可能性があるため、必要に応じてデータ書き出しを利用してください。'],
+      offline:['オフラインでできること','一度オンラインでMaaNoteを読み込んだ後は、ホーム・イベント・予定・TODO・旅程・セトリ・話したいことメモ・集計を端末保存データで確認できます。圏外でも入力内容は端末へ保存されます。公式ページ、地図、Google Driveバックアップなど通信が必要な機能はオンライン時のみ利用できます。'],
+      privacy:['データの取り扱い','個人データはこの端末のIndexedDBを基本保存先にします。Google Driveを接続した場合だけ、MaaNote専用バックアップをGoogle Driveのアプリ専用データ領域へ保存します。Drive内の通常ファイルを一覧表示・読み取りする権限は要求しません。'],
+      driveSetup:['Google Drive連携の設定','Google CloudでDrive APIを有効にし、OAuth Web Client IDをruntime-config.jsの GOOGLE_CLIENT_ID に設定して DRIVE_SYNC_ENABLED を true にすると利用できます。設定後、利用者は初回にGoogleアカウントを1回選ぶだけで、以後の変更は自動バックアップされます。'],
       unofficial:['非公式アプリについて','MaaNoteは非公式のファン向けアプリです。佐藤優樹さん、所属事務所、レコード会社、イベント主催者・会場とは関係ありません。情報の反映・訂正に時間がかかる場合があります。イベント参加前には必ず公式サイト・公式SNS等で最新情報をご確認ください。']
     };
     const [title,body]=map[kind]||['情報','']; showSheet(`<div class="sheet-head"><div class="sheet-title">${escapeHTML(title)}</div><button class="text-btn" data-sheet-close>閉じる</button></div><div class="settings-info-text">${escapeHTML(body)}</div>`);
@@ -2109,7 +2603,7 @@
   async function checkForAppUpdate(){
     if(!navigator.onLine){showToast('更新確認はオンライン時に利用できます');return;}
     try{
-      const res=await fetch(`./version.json?t=${Date.now()}`,{cache:'no-store'}); if(!res.ok)throw new Error('version'); const data=await res.json();
+      const res=await fetch(`${VERSION_URL}?t=${Date.now()}`,{cache:'no-store'}); if(!res.ok)throw new Error('version'); const data=await res.json();
       if(data.version && data.version!==APP_VERSION) showToast(`新しい版があります：${data.version}`); else showToast('✓ この版は最新です');
       if('serviceWorker' in navigator){const reg=await navigator.serviceWorker.getRegistration();await reg?.update();}
     }catch(err){showToast('更新を確認できませんでした');}
@@ -2198,9 +2692,15 @@
     try { await initData(); }
     catch(err){ console.error(err); state.userPlans={}; showToast('端末保存の初期化に失敗しました'); }
     render();
+    if(!IS_VIEW_BUILD && DRIVE_SYNC_ENABLED){
+      setTimeout(()=>{
+        if(state.settings.driveBackupMode==='auto') resumeAutoDriveBackup();
+        else maybeOfferBackupChoice();
+      },350);
+    }
     if(state.recoveredEmergencyBackup) setTimeout(()=>showToast('端末バックアップからデータを自動復旧しました'),250);
     updateConnectivity();
-    window.addEventListener('online',()=>updateConnectivity({announce:true}));
+    window.addEventListener('online',()=>{updateConnectivity({announce:true});scheduleAutoDriveBackup(1200);});
     window.addEventListener('offline',()=>updateConnectivity({announce:true}));
     if('BroadcastChannel' in globalThis){
       const commonChannel=new BroadcastChannel('maanote-common-data');

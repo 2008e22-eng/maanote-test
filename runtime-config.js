@@ -1,8 +1,9 @@
-// MaaNote Stage 12 runtime configuration.
-// Fill these values after creating the Google OAuth client and Cloudflare Worker.
-// Until then, Admin remains in local/manual publish mode.
+// MaaNote Stage 13 runtime configuration.
+// The same Google OAuth Web Client ID can be used for Admin login and Drive backup.
+// Keep features disabled until the Google Cloud setup is complete.
 window.MAANOTE_CONFIG = Object.freeze({
   API_BASE: "",
   GOOGLE_CLIENT_ID: "",
-  ADMIN_AUTH_ENABLED: false
+  ADMIN_AUTH_ENABLED: false,
+  DRIVE_SYNC_ENABLED: false
 });

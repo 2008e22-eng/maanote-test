@@ -1,4 +1,4 @@
-# MaaNote v0.9 Stage 12 - GitHub Pages
+# MaaNote v0.9 Stage 13.1 - GitHub Pages
 
 このフォルダの中身を GitHub リポジトリのルートへ置いてください。
 
@@ -96,3 +96,9 @@ Stage 10 RC2の配信手順は `STAGE10_DEPLOY.md` を参照してください�
 
 
 Google管理者認証・自動配信の設定は `STAGE12_ADMIN_AUTH.md` と `backend-worker/README.md` を参照してください。
+
+
+Google Driveバックアップ/復元は `STAGE13_GOOGLE_DRIVE.md` を参照してください。
+
+
+自動クラウドバックアップの仕様は `STAGE13_1_AUTO_BACKUP.md` を参照してください。
