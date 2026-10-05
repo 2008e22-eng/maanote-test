@@ -1,9 +1,14 @@
-const CACHE = 'maanote-v0.9-stage10-rc2-20261004';
+const CACHE = 'maanote-v0.9-stage11-20261005';
 const APP_SHELL = [
   './',
   './index.html',
-  './styles.css?v=0.9-stage10-rc2',
-  './app.js?v=0.9-stage10-rc2',
+  './view/',
+  './view/index.html',
+  './view/manifest.webmanifest',
+  './admin/',
+  './admin/index.html',
+  './styles.css?v=0.9-stage11',
+  './app.js?v=0.9-stage11',
   './manifest.webmanifest',
   './icon.svg',
   './icon-192.png',
@@ -11,13 +16,13 @@ const APP_SHELL = [
   './apple-touch-icon.png',
   './version.json',
   './admin.html',
-  './admin.css?v=0.9-stage10-rc2',
-  './admin.js?v=0.9-stage10-rc2',
+  './admin.css?v=0.9-stage11',
+  './admin.js?v=0.9-stage11',
   './common-seed.json',
   './common-data.json',
   './migrate-v96.html',
-  './migrate-v96.css?v=0.9-stage10-rc2',
-  './migrate-v96.js?v=0.9-stage10-rc2'
+  './migrate-v96.css?v=0.9-stage11',
+  './migrate-v96.js?v=0.9-stage11'
 ];
 
 self.addEventListener('install', event => {
@@ -55,20 +60,22 @@ self.addEventListener('fetch', event => {
 
   if (req.mode === 'navigate') {
     event.respondWith((async () => {
+      const isView=url.pathname.includes('/view/');
+      const isAdmin=url.pathname.includes('/admin/') || url.pathname.endsWith('/admin.html');
+      const isMigration=url.pathname.endsWith('/migrate-v96.html');
+      const page=isView?'./view/index.html':(isAdmin?'./admin/index.html':(isMigration?'./migrate-v96.html':'./index.html'));
       try {
-        const fresh = await fetch(req);
-        const cache = await caches.open(CACHE);
-        const page = url.pathname.endsWith('/admin.html') ? './admin.html' : (url.pathname.endsWith('/migrate-v96.html') ? './migrate-v96.html' : './index.html');
-        cache.put(page, fresh.clone());
+        const fresh=await fetch(req);
+        const cache=await caches.open(CACHE);
+        cache.put(page,fresh.clone());
         return fresh;
       } catch (_) {
-        if (url.pathname.endsWith('/admin.html')) return (await caches.match('./admin.html')) || (await caches.match('./index.html'));
-        if (url.pathname.endsWith('/migrate-v96.html')) return (await caches.match('./migrate-v96.html')) || (await caches.match('./index.html'));
-        return (await caches.match('./index.html')) || (await caches.match('./'));
+        return (await caches.match(page)) || (await caches.match('./index.html')) || (await caches.match('./'));
       }
     })());
     return;
   }
+
 
   event.respondWith((async () => {
     const cached = await caches.match(req);

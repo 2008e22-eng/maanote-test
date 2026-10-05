@@ -1,4 +1,4 @@
-# MaaNote v0.9 Stage 10 RC2 - GitHub Pages
+# MaaNote v0.9 Stage 11 - GitHub Pages
 
 このフォルダの中身を GitHub リポジトリのルートへ置いてください。
 
@@ -90,3 +90,6 @@
 
 
 Stage 10 RC2の配信手順は `STAGE10_DEPLOY.md` を参照してください。
+
+
+3 URL構成は `STAGE11_URLS.md` を参照してください。

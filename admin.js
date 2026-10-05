@@ -1,6 +1,6 @@
 (() => {
   'use strict';
-  const DB='MaaNoteDB', DB_VERSION=7, APP_VERSION='0.9-stage10-rc2', EMERGENCY_COMMON_KEY='MaaNoteEmergencyCommonV1';
+  const DB='MaaNoteAdminDB', LEGACY_DB='MaaNoteDB', DB_VERSION=7, APP_VERSION='0.9-stage11', EMERGENCY_COMMON_KEY='MaaNoteAdminEmergencyCommonV1', ROOT_PREFIX=location.pathname.includes('/admin/')?'../':'./';
   const app=document.getElementById('adminApp'), sheet=document.getElementById('adminSheet'), toast=document.getElementById('adminToast');
   const state={db:null,tab:'release',events:[],other:[],history:[],drafts:[],meta:{version:0},draftTimer:null,backupTimer:null,backupSuspended:false,recovered:false};
   const CATEGORIES={live:'LIVE',fc:'FC EVENT',radio:'RADIO',limista:'LIMISTA',tv_web:'TV・WEB',release:'RELEASE',other:'OTHER'};
@@ -19,12 +19,42 @@
   function put(store,v,skipBackup=false){return new Promise((resolve,reject)=>{const tx=state.db.transaction(store,'readwrite');tx.objectStore(store).put(v);tx.oncomplete=()=>{if(!skipBackup)scheduleAdminBackup();resolve()};tx.onerror=()=>reject(tx.error)})}
   function del(store,key){return new Promise((resolve,reject)=>{const tx=state.db.transaction(store,'readwrite');tx.objectStore(store).delete(key);tx.oncomplete=()=>{scheduleAdminBackup();resolve()};tx.onerror=()=>reject(tx.error)})}
 
+  async function migrateLegacyAdminDataIfNeeded(){
+    if((await all('commonEvents')).length) return false;
+    let legacyDb=null;
+    try{
+      legacyDb=await new Promise((resolve,reject)=>{
+        const r=indexedDB.open(LEGACY_DB);
+        r.onsuccess=()=>resolve(r.result);
+        r.onerror=()=>reject(r.error);
+        r.onupgradeneeded=()=>{try{r.transaction.abort()}catch(_){};reject(new Error('legacy DB unavailable'))};
+      });
+    }catch(_){return false}
+
+    const names=['commonEvents','commonOtherItems','commonMeta','commonHistory','adminDrafts'];
+    let copied=false;
+    try{
+      for(const name of names){
+        if(!legacyDb.objectStoreNames.contains(name)) continue;
+        const rows=await new Promise((resolve,reject)=>{
+          const r=legacyDb.transaction(name,'readonly').objectStore(name).getAll();
+          r.onsuccess=()=>resolve(r.result||[]);
+          r.onerror=()=>reject(r.error);
+        });
+        for(const row of rows){await put(name,structuredClone(row),true);copied=true}
+      }
+    }finally{legacyDb.close()}
+    if(copied)scheduleAdminBackup();
+    return copied;
+  }
+
   async function load(){
+    await migrateLegacyAdminDataIfNeeded();
     let events=await all('commonEvents');
     let other=await all('commonOtherItems');
     if(!events.length){
       try{
-        const seed=await (await fetch('./common-seed.json')).json();
+        let seed=null;try{seed=await (await fetch(`${ROOT_PREFIX}common-data.json?t=${Date.now()}`,{cache:'no-store'})).json()}catch(_){};if(!seed?.events)seed=await (await fetch(`${ROOT_PREFIX}common-seed.json`)).json();
         for(const row of seed.events||[]) await put('commonEvents',row);
         for(const row of seed.otherItems||[]) await put('commonOtherItems',row);
         events=await all('commonEvents'); other=await all('commonOtherItems');
@@ -38,7 +68,7 @@
     const m=(await all('commonMeta')).find(x=>x.key==='publish'); state.meta=m||{version:0};
   }
 
-  function shell(content){return `<main class="shell"><header class="top"><div><div class="brand">MaaNote Admin</div><div class="sub">管理者用 · Stage 10 RC2</div></div><div class="top-actions"><button class="app-link admin-export" data-export-common-global>配信用JSON</button><a class="app-link" href="./index.html">利用者画面へ</a></div></header><div class="warning"><strong>RC2の配信方法</strong><br>ここで編集・公開した内容はまずこの端末へ保存されます。利用者全体へ反映するときは「配信用JSON」を書き出し、GitHub Pagesのルートにある <strong>common-data.json</strong> を上書きしてPushします。個人データにはアクセスしません。</div><nav class="tabs"><button data-tab="release" class="${state.tab==='release'?'active':''}">3rd Single</button><button data-tab="other" class="${state.tab==='other'?'active':''}">その他</button><button data-tab="history" class="${state.tab==='history'?'active':''}">履歴</button></nav><div class="content">${content}</div></main>`}
+  function shell(content){return `<main class="shell"><header class="top"><div><div class="brand">MaaNote Admin</div><div class="sub">管理者用 · Stage 11</div></div><div class="top-actions"><button class="app-link admin-export" data-export-common-global>配信用JSON</button><a class="app-link" href="${ROOT_PREFIX}">入力版</a><a class="app-link" href="${ROOT_PREFIX}view/">見るだけ版</a></div></header><div class="warning"><strong>Stage 11の配信方法</strong><br>ここで編集した共通情報は管理者専用領域へ保存されます。「配信用JSON」で <strong>common-data.json</strong> を書き出してGitHubへPushすると、見るだけ版と入力版の両方が同じ情報を受信します。管理者ログインとワンクリック配信は次段階で追加します。</div><nav class="tabs"><button data-tab="release" class="${state.tab==='release'?'active':''}">3rd Single</button><button data-tab="other" class="${state.tab==='other'?'active':''}">その他</button><button data-tab="history" class="${state.tab==='history'?'active':''}">履歴</button></nav><div class="content">${content}</div></main>`}
 
   function render(){
     if(state.tab==='release') app.innerHTML=shell(releaseList());

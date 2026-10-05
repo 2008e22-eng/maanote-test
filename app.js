@@ -1,10 +1,15 @@
 (() => {
   'use strict';
 
-  const APP_VERSION = '0.9-stage10-rc2';
-  const APP_VERSION_LABEL = 'v0.9 Stage 10 RC2';
-  const IS_TEST_MODE = new URLSearchParams(location.search).get('test')==='1';
-  const COMMON_DATA_URL = './common-data.json';
+  const APP_VERSION = '0.9-stage11';
+  const APP_VERSION_LABEL = 'v0.9 Stage 11';
+  const IS_VIEW_BUILD = location.pathname.includes('/view/');
+  const IS_TEST_MODE = !IS_VIEW_BUILD && new URLSearchParams(location.search).get('test')==='1';
+  const COMMON_DATA_URL = IS_VIEW_BUILD ? '../common-data.json' : './common-data.json';
+  const VERSION_URL = IS_VIEW_BUILD ? '../version.json' : './version.json';
+  const SW_URL = IS_VIEW_BUILD ? '../sw.js' : './sw.js';
+  const APP_DB_NAME = IS_VIEW_BUILD ? 'MaaNoteViewDB' : 'MaaNoteDB';
+  const EMERGENCY_PREFIX = IS_VIEW_BUILD ? 'MaaNoteView' : 'MaaNote';
   const ACCENT = '#47B0A0';
   const OFFICIAL_URL = 'https://www.jp-r.co.jp/masaki_satou/event/006feb74b8da455d4d8e8d30b5f54904965d113acebc5cffe84c79f8d2b7cc76/';
 
@@ -201,7 +206,7 @@
       ['migrationInfo','id'],['legacyData','id']
     ];
     const open = (version) => new Promise((resolve,reject)=>{
-      const req = version ? indexedDB.open('MaaNoteDB',version) : indexedDB.open('MaaNoteDB');
+      const req = version ? indexedDB.open(APP_DB_NAME,version) : indexedDB.open(APP_DB_NAME);
       req.onupgradeneeded = () => {
         const db=req.result;
         stores.forEach(([name,keyPath])=>{
@@ -220,8 +225,8 @@
   }
 
 
-  const EMERGENCY_PERSONAL_KEY='MaaNoteEmergencyPersonalV1';
-  const EMERGENCY_COMMON_KEY='MaaNoteEmergencyCommonV1';
+  const EMERGENCY_PERSONAL_KEY=`${EMERGENCY_PREFIX}EmergencyPersonalV1`;
+  const EMERGENCY_COMMON_KEY=`${EMERGENCY_PREFIX}EmergencyCommonV1`;
   let emergencyBackupTimer=null;
   let emergencyBackupSuspended=false;
 
@@ -256,12 +261,16 @@
       const commonStores=['commonEvents','commonOtherItems','commonMeta','commonHistory','adminDrafts'];
       const personal={};
       const common={};
-      for(const store of personalStores) personal[store]=emergencySanitize(await idbGetAll(store),store);
+      if(!IS_VIEW_BUILD){
+        for(const store of personalStores) personal[store]=emergencySanitize(await idbGetAll(store),store);
+      }
       for(const store of commonStores) common[store]=emergencySanitize(await idbGetAll(store),store);
-      localStorage.setItem(EMERGENCY_PERSONAL_KEY,JSON.stringify({
-        format:'MaaNote-emergency-backup',version:1,scope:'personal',appVersion:APP_VERSION,
-        updatedAt:new Date().toISOString(),stores:personal
-      }));
+      if(!IS_VIEW_BUILD){
+        localStorage.setItem(EMERGENCY_PERSONAL_KEY,JSON.stringify({
+          format:'MaaNote-emergency-backup',version:1,scope:'personal',appVersion:APP_VERSION,
+          updatedAt:new Date().toISOString(),stores:personal
+        }));
+      }
       localStorage.setItem(EMERGENCY_COMMON_KEY,JSON.stringify({
         format:'MaaNote-emergency-backup',version:1,scope:'common',appVersion:APP_VERSION,
         updatedAt:new Date().toISOString(),stores:common
@@ -282,7 +291,7 @@
     let restored=false;
     emergencyBackupSuspended=true;
     try{
-      const personalBackup=parseEmergencyBackup(EMERGENCY_PERSONAL_KEY);
+      const personalBackup=IS_VIEW_BUILD?null:parseEmergencyBackup(EMERGENCY_PERSONAL_KEY);
       if(personalBackup?.stores){
         const personalStores=['userEventPlans','settings','todos','personalSchedules','travelBookings','setlists','talkMemos','migrationInfo','legacyData'];
         for(const store of personalStores){
@@ -420,31 +429,32 @@
     await restoreEmergencyBackupIfNeeded();
     await syncPublishedCommonData();
     await loadCommonData();
-    const plans=await idbGetAll('userEventPlans');
+    const plans=IS_VIEW_BUILD?[]:await idbGetAll('userEventPlans');
     state.userPlans=Object.fromEntries(plans.filter(p=>!p.deleted).map(p=>[p.eventId,p]));
     const settings=await idbGetAll('settings');
     for(const row of settings) state.settings[row.key]=row.value;
+    if(IS_VIEW_BUILD) state.settings.mode='view_only';
     applyFontSize(state.settings.fontSize||'standard');
     if(state.settings.rememberEventFilter && state.settings.lastEventFilter) state.eventFilter=state.settings.lastEventFilter;
 
-    const todos=await idbGetAll('todos');
+    const todos=IS_VIEW_BUILD?[]:await idbGetAll('todos');
     state.todos=todos.filter(t=>!t.deleted);
 
-    const schedules=await idbGetAll('personalSchedules');
+    const schedules=IS_VIEW_BUILD?[]:await idbGetAll('personalSchedules');
     state.personalSchedules=schedules.filter(x=>!x.deleted);
 
-    const travel=await idbGetAll('travelBookings');
+    const travel=IS_VIEW_BUILD?[]:await idbGetAll('travelBookings');
     state.travelBookings=travel.filter(x=>!x.deleted);
 
-    let setlists=await idbGetAll('setlists');
-    if(!setlists.length && initialSetlists.length){
+    let setlists=IS_VIEW_BUILD?[]:await idbGetAll('setlists');
+    if(!IS_VIEW_BUILD && !setlists.length && initialSetlists.length){
       for(const row of initialSetlists) await idbPut('setlists',row);
       setlists=structuredClone(initialSetlists);
     }
     state.setlists=setlists.filter(x=>!x.deleted);
 
-    let talkMemos=await idbGetAll('talkMemos');
-    if(!talkMemos.length && initialTalkMemos.length){
+    let talkMemos=IS_VIEW_BUILD?[]:await idbGetAll('talkMemos');
+    if(!IS_VIEW_BUILD && !talkMemos.length && initialTalkMemos.length){
       for(const row of initialTalkMemos) await idbPut('talkMemos',row);
       talkMemos=structuredClone(initialTalkMemos);
     }
@@ -708,9 +718,9 @@
         <header class="${headerClass}" ${headerStyle}>
           <div class="home-hero-inner">
             <div class="hero-top">
-              <div class="brand-block"><div class="brand">MaaNote</div><div class="brand-sub">まーちゃん 3rd Single</div></div>
+              <div class="brand-block"><div class="brand">MaaNote</div><div class="brand-sub">まーちゃん 3rd Single${IS_VIEW_BUILD?' · VIEW':''}</div></div>
               <div class="hero-actions">
-                <button class="icon-btn" data-action="quick-add" aria-label="追加">${icon('plus')}</button>
+                ${IS_VIEW_BUILD?'':`<button class="icon-btn" data-action="quick-add" aria-label="追加">${icon('plus')}</button>`}
                 <button class="icon-btn" data-action="settings" aria-label="設定">${icon('settings')}</button>
               </div>
             </div>
@@ -822,7 +832,7 @@
       <header class="topbar"><div class="topbar-inner"><button data-action="close-detail" aria-label="閉じる">${icon('close')}</button><div class="topbar-title">イベント詳細</div><button data-action="edit-day" aria-label="当日情報を編集">${icon('edit')}</button></div></header>
       <div class="detail-wrap">
         <div class="detail-summary"><div class="detail-date">${fmtDate(ev.date,true)}　${ev.prefecture} ${commonStatusBadge(ev.status)}</div><div class="detail-venue">${ev.venue}</div><div class="detail-place">${icon('pin')} ${stationText(ev)}</div></div>
-        <div class="detail-tabs"><div class="segment"><button data-detail-tab="official" class="${state.detailTab==='official'?'active':''}">公式情報</button><button data-detail-tab="day" class="${state.detailTab==='day'?'active':''}">当日</button><button data-detail-tab="travel" class="${state.detailTab==='travel'?'active':''}">旅程</button></div></div>
+        ${IS_VIEW_BUILD?'':`<div class="detail-tabs"><div class="segment"><button data-detail-tab="official" class="${state.detailTab==='official'?'active':''}">公式情報</button><button data-detail-tab="day" class="${state.detailTab==='day'?'active':''}">当日</button><button data-detail-tab="travel" class="${state.detailTab==='travel'?'active':''}">旅程</button></div></div>`}
         ${detailBody(ev,plan)}
       </div>
       ${detailPager(ev)}
@@ -1430,7 +1440,7 @@
       <div class="form-help" style="margin-top:10px">画像を選んだだけでは外部AIへ送信しません。AI自動入力は後のバージョンで追加予定です。</div>`,'travel-sheet');
     const file=sheetRoot.querySelector('[data-travel-first-file]');
     sheetRoot.querySelector('[data-travel-pick-first]').onclick=()=>file.click();
-    file.onchange=async()=>{
+    if(file)file.onchange=async()=>{
       if(!file.files?.length)return;
       showToast('画像を端末用に準備中…');
       const images=await readTravelImages(file.files);
@@ -1882,7 +1892,7 @@
     document.querySelectorAll('[data-open-event]').forEach(el=>el.onclick=(e)=>{
       if(e.target.closest('[data-map],[data-placeholder]')) return;
       if(state.screen==='events') state.lastEventScroll=window.scrollY;
-      state.detailEventId=el.dataset.openEvent; state.screen='detail'; const openedEv=officialEvents.find(x=>x.id===state.detailEventId); state.detailTab=(homeMode(openedEv)==='today' && userPlanForEvent(openedEv).participationStatus==='confirmed')?'day':'official'; renderDetail(); window.scrollTo(0,0);
+      state.detailEventId=el.dataset.openEvent; state.screen='detail'; const openedEv=officialEvents.find(x=>x.id===state.detailEventId); state.detailTab=IS_VIEW_BUILD?'official':((homeMode(openedEv)==='today' && userPlanForEvent(openedEv).participationStatus==='confirmed')?'day':'official'); renderDetail(); window.scrollTo(0,0);
     });
     document.querySelectorAll('[data-map]').forEach(el=>el.onclick=(e)=>{
       e.stopPropagation();
@@ -1924,6 +1934,43 @@
   function renderSettings(){
     const h=state.settings.headerImage;
     const swReady=!!navigator.serviceWorker?.controller;
+
+    if(IS_VIEW_BUILD){
+      app.innerHTML=`<main class="screen settings-screen">
+        <header class="topbar"><div class="topbar-inner"><button data-settings-back aria-label="戻る">${icon('back')}</button><div class="topbar-title">設定</div><div></div></div></header>
+        <div class="content settings-content">
+          <div class="settings-section-title">表示</div>
+          <section class="card settings-card">
+            <label class="settings-field"><span><strong>文字サイズ</strong><small>この端末だけに保存されます</small></span><select class="settings-select" data-setting-font-size><option value="small" ${state.settings.fontSize==='small'?'selected':''}>小さめ 90%</option><option value="standard" ${!state.settings.fontSize||state.settings.fontSize==='standard'?'selected':''}>標準 100%</option><option value="large" ${state.settings.fontSize==='large'?'selected':''}>大きめ 120%</option><option value="xlarge" ${state.settings.fontSize==='xlarge'?'selected':''}>特大 140%</option></select></label>
+            <div class="font-size-preview"><small>表示例</small><strong>11/2(月) 千葉　イオンモール幕張新都心</strong></div>
+          </section>
+
+          <div class="settings-section-title">配信情報</div>
+          <section class="card settings-card">
+            <div class="settings-status-row"><span><strong>イベント情報</strong><small>管理者から配信された共通データ</small></span><b>v${state.commonMeta?.version||'—'}</b></div>
+            <div class="settings-status-row"><span><strong>最終更新</strong><small>${state.commonMeta?.summary?escapeHTML(state.commonMeta.summary):'—'}</small></span><b>${state.commonMeta?.updatedAt?new Date(state.commonMeta.updatedAt).toLocaleDateString('ja-JP'):'—'}</b></div>
+            <button class="settings-nav-row" data-refresh-common><span><strong>最新情報を確認</strong><small>オンラインで配信情報を更新</small></span><span class="chev">›</span></button>
+          </section>
+
+          <div class="settings-section-title">ヘルプ・情報</div>
+          <section class="card settings-card">
+            <button class="settings-nav-row" data-settings-info="offline"><span><strong>オフラインでできること</strong><small>圏外時の動作を確認</small></span><span class="chev">›</span></button>
+            <button class="settings-nav-row" data-settings-info="privacy"><span><strong>データの取り扱い</strong><small>見るだけ版では個人の予定を保存しません</small></span><span class="chev">›</span></button>
+            <button class="settings-nav-row" data-settings-info="unofficial"><span><strong>非公式アプリについて</strong><small>参加前は必ず公式情報をご確認ください</small></span><span class="chev">›</span></button>
+          </section>
+
+          <div class="settings-section-title">アプリ情報</div>
+          <section class="card settings-card">
+            <div class="settings-status-row"><span><strong>MaaNote View</strong><small>見るだけ版 · 非公式</small></span><b>${APP_VERSION_LABEL}</b></div>
+            <div class="settings-status-row"><span><strong>オフライン利用</strong><small>初回読込後は主要情報を閲覧可能</small></span><b class="${swReady?'ok':'muted'}">${swReady?'利用可能':'初回読込後'}</b></div>
+            <button class="settings-nav-row" data-check-update><span><strong>更新を確認</strong><small>アプリ本体の更新を確認</small></span><span class="chev">›</span></button>
+          </section>
+          <div class="settings-footnote">MaaNote Viewは公開情報を見るためのURLです。参加状況・CD・TODO・旅程などの個人管理機能はありません。</div>
+        </div>
+      </main>`;
+      bindSettings();
+      return;
+    }
     app.innerHTML=`<main class="screen settings-screen">
       <header class="topbar"><div class="topbar-inner"><button data-settings-back aria-label="戻る">${icon('back')}</button><div class="topbar-title">設定</div><div></div></div></header>
       <div class="content settings-content">
@@ -1986,11 +2033,11 @@
 
   function bindSettings(){
     document.querySelector('[data-settings-back]').onclick=settingsBack;
-    const mode=document.querySelector('[data-setting-mode]'); mode.onchange=async()=>{await saveSetting('mode',mode.value);showToast('✓ 利用モードを変更しました');};
-    const hf=document.querySelector('[data-setting-home-filter]'); hf.onchange=async()=>{await saveSetting('homeEventFilter',hf.value);showToast('✓ 保存しました');};
-    const rf=document.querySelector('[data-setting-remember-filter]'); rf.onchange=async()=>{await saveSetting('rememberEventFilter',rf.checked);if(rf.checked)await saveSetting('lastEventFilter',state.eventFilter);showToast('✓ 保存しました');};
-    const fs=document.querySelector('[data-setting-font-size]'); fs.onchange=async()=>{await saveSetting('fontSize',fs.value);showToast('✓ 文字サイズを変更しました');};
-    const iq=document.querySelector('[data-setting-image-quality]'); iq.onchange=async()=>{await saveSetting('imageQuality',iq.value);showToast('✓ 画像画質を変更しました');};
+    const mode=document.querySelector('[data-setting-mode]'); if(mode)mode.onchange=async()=>{await saveSetting('mode',mode.value);showToast('✓ 利用モードを変更しました');};
+    const hf=document.querySelector('[data-setting-home-filter]'); if(hf)hf.onchange=async()=>{await saveSetting('homeEventFilter',hf.value);showToast('✓ 保存しました');};
+    const rf=document.querySelector('[data-setting-remember-filter]'); if(rf)rf.onchange=async()=>{await saveSetting('rememberEventFilter',rf.checked);if(rf.checked)await saveSetting('lastEventFilter',state.eventFilter);showToast('✓ 保存しました');};
+    const fs=document.querySelector('[data-setting-font-size]'); if(fs)fs.onchange=async()=>{await saveSetting('fontSize',fs.value);showToast('✓ 文字サイズを変更しました');};
+    const iq=document.querySelector('[data-setting-image-quality]'); if(iq)iq.onchange=async()=>{await saveSetting('imageQuality',iq.value);showToast('✓ 画像画質を変更しました');};
     const pv=document.querySelector('[data-setting-preview]'); if(pv)pv.onchange=async()=>{await saveSetting('previewDate',pv.value||null);state.calendarCursor=null;showToast('✓ TEST表示日を変更しました');};
     const refreshCommon=document.querySelector('[data-refresh-common]'); if(refreshCommon)refreshCommon.onclick=async()=>{
       if(!navigator.onLine){showToast('配信情報の更新はオンライン時に利用できます');return;}
@@ -1999,12 +2046,12 @@
       renderSettings();
       showToast(result.updated?'✓ 配信情報を更新しました':'✓ 配信情報は最新です');
     };
-    const file=document.querySelector('[data-header-file]'); document.querySelector('[data-pick-header]').onclick=()=>file.click();
+    const file=document.querySelector('[data-header-file]'); const pickHeader=document.querySelector('[data-pick-header]'); if(file&&pickHeader)pickHeader.onclick=()=>file.click();
     file.onchange=async()=>{if(!file.files?.[0])return;const data=await resizeImage(file.files[0]);await saveSetting('headerImage',data);renderSettings();showToast('✓ ヘッダー画像を保存しました');};
     const del=document.querySelector('[data-delete-header]'); if(del)del.onclick=async()=>{if(!state.settings.headerImage)return;await saveSetting('headerImage',null);renderSettings();showToast('✓ ヘッダー画像を削除しました');};
     document.querySelectorAll('[data-export-data]').forEach(b=>b.onclick=()=>exportPersonalData(b.dataset.exportData==='all'));
     document.querySelectorAll('[data-settings-info]').forEach(b=>b.onclick=()=>openSettingsInfo(b.dataset.settingsInfo));
-    document.querySelector('[data-check-update]').onclick=checkForAppUpdate;
+    const checkUpdate=document.querySelector('[data-check-update]'); if(checkUpdate)checkUpdate.onclick=checkForAppUpdate;
   }
 
   async function exportPersonalData(includeImages=false){
@@ -2119,7 +2166,7 @@
     }
     if('serviceWorker' in navigator && location.protocol.startsWith('http')){
       try {
-        await navigator.serviceWorker.register('./sw.js');
+        await navigator.serviceWorker.register(SW_URL);
         await navigator.serviceWorker.ready;
       } catch(err){ console.warn('Service Worker registration failed',err); }
     }
