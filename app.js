@@ -1,8 +1,8 @@
 (() => {
   'use strict';
 
-  const APP_VERSION = '0.9-stage12';
-  const APP_VERSION_LABEL = 'v0.9 Stage 12';
+  const APP_VERSION = '0.9-stage12.1';
+  const APP_VERSION_LABEL = 'v0.9 Stage 12.1';
   const CONFIG = globalThis.MAANOTE_CONFIG || {};
   const API_BASE = String(CONFIG.API_BASE||'').replace(/\/$/,'');
   const IS_VIEW_BUILD = location.pathname.includes('/view/');
@@ -12,6 +12,7 @@
   const SW_URL = IS_VIEW_BUILD ? '../sw.js' : './sw.js';
   const APP_DB_NAME = IS_VIEW_BUILD ? 'MaaNoteViewDB' : 'MaaNoteDB';
   const EMERGENCY_PREFIX = IS_VIEW_BUILD ? 'MaaNoteView' : 'MaaNote';
+  const SHARED_LOCAL_COMMON_KEY='MaaNoteSharedCommonPreviewV1';
   const ACCENT = '#47B0A0';
   const OFFICIAL_URL = 'https://www.jp-r.co.jp/masaki_satou/event/006feb74b8da455d4d8e8d30b5f54904965d113acebc5cffe84c79f8d2b7cc76/';
 
@@ -346,8 +347,33 @@
     });
   }
 
+  async function applySharedLocalCommonData(){
+    if(API_BASE) return {updated:false};
+    let payload=null;
+    try{payload=JSON.parse(localStorage.getItem(SHARED_LOCAL_COMMON_KEY)||'null')}catch(_){}
+    if(payload?.format!=='MaaNote-common-data' || !Array.isArray(payload.events) || !Array.isArray(payload.otherItems)) {
+      return {updated:false};
+    }
+    const metaRows=await idbGetAll('commonMeta');
+    const localMeta=metaRows.find(x=>x.key==='publish')||{version:0};
+    const localVersion=Number(localMeta.version||0);
+    const incomingVersion=Number(payload.publishMeta?.version||0);
+    if(incomingVersion<=localVersion) return {updated:false,incomingVersion,localVersion};
+
+    for(const row of payload.events) await idbPut('commonEvents',structuredClone(row));
+    for(const row of payload.otherItems) await idbPut('commonOtherItems',structuredClone(row));
+    if(payload.publishMeta){
+      await idbPut('commonMeta',{key:'publish',...structuredClone(payload.publishMeta)});
+    }
+    if(Array.isArray(payload.history)){
+      for(const row of payload.history) await idbPut('commonHistory',structuredClone(row));
+    }
+    return {updated:true,incomingVersion,localVersion};
+  }
+
   async function syncPublishedCommonData({force=false}={}){
-    if(!navigator.onLine) return {updated:false,offline:true};
+    const localPreview=await applySharedLocalCommonData();
+    if(!navigator.onLine) return {updated:localPreview.updated,offline:true};
     try{
       const res=await fetch(`${COMMON_DATA_URL}?t=${Date.now()}`,{cache:'no-store'});
       if(!res.ok) throw new Error(`common-data ${res.status}`);
@@ -364,7 +390,7 @@
       const currentEvents=await idbGetAll('commonEvents');
       const shouldApply=force || !currentEvents.length || remoteVersion>localVersion;
 
-      if(!shouldApply) return {updated:false,remoteVersion,localVersion};
+      if(!shouldApply) return {updated:localPreview.updated,remoteVersion,localVersion};
 
       for(const row of payload.events) await idbPut('commonEvents',structuredClone(row));
       for(const row of payload.otherItems) await idbPut('commonOtherItems',structuredClone(row));
@@ -2151,6 +2177,22 @@
   let toastTimer=null;
   function showToast(msg){ clearTimeout(toastTimer); toastEl.textContent=msg; toastEl.classList.add('show'); toastTimer=setTimeout(()=>toastEl.classList.remove('show'),1500); }
   function escapeAttr(s){ return String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+  window.addEventListener('storage',async ev=>{
+    if(ev.key!==SHARED_LOCAL_COMMON_KEY || API_BASE || !state.db) return;
+    try{
+      const result=await applySharedLocalCommonData();
+      if(result.updated){
+        await loadCommonData();
+        if(state.screen==='home') renderHome();
+        else if(state.screen==='events') renderEvents();
+        else if(state.screen==='plans') renderPlans();
+        else if(state.screen==='detail') renderDetail();
+        else if(state.screen==='settings') renderSettings();
+        showToast('✓ 管理者の更新を反映しました');
+      }
+    }catch(err){console.warn('shared common preview refresh failed',err)}
+  });
 
   async function boot(){
     try { await initData(); }

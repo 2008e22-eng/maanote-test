@@ -1,11 +1,12 @@
 (() => {
   'use strict';
-  const DB='MaaNoteAdminDB', LEGACY_DB='MaaNoteDB', DB_VERSION=7, APP_VERSION='0.9-stage12', EMERGENCY_COMMON_KEY='MaaNoteAdminEmergencyCommonV1', ROOT_PREFIX=location.pathname.includes('/admin/')?'../':'./';
+  const DB='MaaNoteAdminDB', LEGACY_DB='MaaNoteDB', DB_VERSION=7, APP_VERSION='0.9-stage12.1', EMERGENCY_COMMON_KEY='MaaNoteAdminEmergencyCommonV1', ROOT_PREFIX=location.pathname.includes('/admin/')?'../':'./';
   const app=document.getElementById('adminApp'), sheet=document.getElementById('adminSheet'), toast=document.getElementById('adminToast');
   const CONFIG=globalThis.MAANOTE_CONFIG||{};
   const API_BASE=String(CONFIG.API_BASE||'').replace(/\/$/,'');
   const SECURE_ADMIN=!!(CONFIG.ADMIN_AUTH_ENABLED && API_BASE && CONFIG.GOOGLE_CLIENT_ID);
   const state={db:null,tab:'release',events:[],other:[],history:[],drafts:[],meta:{version:0},draftTimer:null,backupTimer:null,backupSuspended:false,recovered:false,auth:{token:null,user:null,role:null},admins:[]};
+  const SHARED_LOCAL_COMMON_KEY='MaaNoteSharedCommonPreviewV1';
   const CATEGORIES={live:'LIVE',fc:'FC EVENT',radio:'RADIO',limista:'LIMISTA',tv_web:'TV・WEB',release:'RELEASE',other:'OTHER'};
 
   const h=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -72,6 +73,25 @@
   }
 
 
+  function publishLocalPreview(){
+    if(SECURE_ADMIN) return;
+    const payload={
+      format:'MaaNote-common-data',
+      version:1,
+      publishMeta:state.meta,
+      events:state.events,
+      otherItems:state.other,
+      history:state.history,
+      exportedAt:now()
+    };
+    try{
+      localStorage.setItem(SHARED_LOCAL_COMMON_KEY,JSON.stringify(payload));
+      try{new BroadcastChannel('maanote-common').postMessage({type:'common-updated',version:Number(state.meta?.version||0)})}catch(_){}
+    }catch(e){
+      console.warn('shared local preview save failed',e);
+    }
+  }
+
   function authHeaders(extra={}){return {...extra,...(state.auth.token?{Authorization:`Bearer ${state.auth.token}`}:{})}}
   async function api(path,options={}){
     if(!API_BASE) throw new Error('API未設定');
@@ -93,7 +113,7 @@
   }
 
   function renderAuthGate(message=''){
-    app.innerHTML=`<main class="shell"><header class="top"><div><div class="brand">MaaNote Admin</div><div class="sub">管理者用 · Stage 12</div></div></header>
+    app.innerHTML=`<main class="shell"><header class="top"><div><div class="brand">MaaNote Admin</div><div class="sub">管理者用 · Stage 12.1</div></div></header>
       <div class="auth-card">
         <div class="auth-title">管理者ログイン</div>
         <div class="auth-copy">Googleアカウントでログインしてください。登録済みのオーナー／管理者だけが編集・公開できます。</div>
@@ -219,7 +239,7 @@
   function shell(content){
     const secureNote=SECURE_ADMIN
       ? `<div class="warning secure"><strong>Google認証モード</strong><br>公開すると、見るだけ版と入力版へ同じ共通情報が自動配信されます。</div>`
-      : `<div class="warning"><strong>認証未設定・ローカルモード</strong><br>現在は従来どおり、この端末へ保存して「配信用JSON」をGitHubへ上書きする方式です。Google認証の設定後は自動配信へ切り替わります。</div>`;
+      : `<div class="warning"><strong>認証未設定・ローカルモード</strong><br>この端末では③の更新を①見るだけ版・②入力版へすぐ反映します。ほかの端末や一般公開中の①へ配信するには、Google認証/API設定前は「配信用JSON」をGitHubへ上書きしてください。Google認証設定後は公開ボタンだけで全端末へ自動配信されます。</div>`;
     const authArea=SECURE_ADMIN&&state.auth.user
       ? `<div class="admin-user"><span>${h(state.auth.user.name||state.auth.user.email)}</span><small>${state.auth.role==='owner'?'OWNER':'ADMIN'}</small><button data-admin-logout>ログアウト</button></div>`
       : '';
@@ -229,7 +249,7 @@
       ['history','履歴'],
       ...(SECURE_ADMIN&&state.auth.role==='owner'?[['admins','管理者']]:[])
     ];
-    return `<main class="shell"><header class="top"><div><div class="brand">MaaNote Admin</div><div class="sub">管理者用 · Stage 12</div></div><div class="top-actions">${SECURE_ADMIN?'':`<button class="app-link admin-export" data-export-common-global>配信用JSON</button>`}<a class="app-link" href="${ROOT_PREFIX}">入力版</a><a class="app-link" href="${ROOT_PREFIX}view/">見るだけ版</a></div></header>${authArea}${secureNote}<nav class="tabs">${tabs.map(([k,l])=>`<button data-tab="${k}" class="${state.tab===k?'active':''}">${l}</button>`).join('')}</nav><div class="content">${content}</div></main>`;
+    return `<main class="shell"><header class="top"><div><div class="brand">MaaNote Admin</div><div class="sub">管理者用 · Stage 12.1</div></div><div class="top-actions">${SECURE_ADMIN?'':`<button class="app-link admin-export" data-export-common-global>配信用JSON</button>`}<a class="app-link" href="${ROOT_PREFIX}">入力版</a><a class="app-link" href="${ROOT_PREFIX}view/">見るだけ版</a></div></header>${authArea}${secureNote}<nav class="tabs">${tabs.map(([k,l])=>`<button data-tab="${k}" class="${state.tab===k?'active':''}">${l}</button>`).join('')}</nav><div class="content">${content}</div></main>`;
   }
 
   function render(){
@@ -395,8 +415,8 @@
     const summary=type==='event'?`${next.date||''} ${next.prefecture||''} ${next.venue||''} を${before?'更新':'追加'}しました`:`${CATEGORIES[next.category]||'OTHER'}「${next.title}」を${before?'更新':'追加'}しました`;
     await put('commonMeta',{key:'publish',version,updatedAt:publishedAt,summary});
     await put('commonHistory',{id:uid('history'),version,publishedAt,entityType:type,entityId:next.id,summary,before:before?structuredClone(before):null,after:structuredClone(next)});
-    await del('adminDrafts',`${type}:${next.id}`).catch(()=>{}); closeSheet(); await load(); render();
-    showToast('✓ 保存しました。配信用JSONを更新してください');
+    await del('adminDrafts',`${type}:${next.id}`).catch(()=>{}); closeSheet(); await load(); publishLocalPreview(); render();
+    showToast('✓ ①見るだけ版・②入力版へこの端末内で反映しました');
   }
 
   async function rollback(historyId){
@@ -430,7 +450,7 @@
     const summary=`${rec.summary} の変更前へロールバック`;
     await put('commonMeta',{key:'publish',version,updatedAt:publishedAt,summary});
     await put('commonHistory',{id:uid('history'),version,publishedAt,entityType:rec.entityType,entityId:rec.entityId,summary,before:current?structuredClone(current):null,after:structuredClone(restored)});
-    await load();render();showToast('✓ ロールバックを公開しました');
+    await load();publishLocalPreview();render();showToast('✓ ロールバックを①②へ反映しました');
   }
 
   function exportCommon(){const payload={format:'MaaNote-common-data',version:1,publishMeta:state.meta,events:state.events,otherItems:state.other,history:state.history,exportedAt:now()};const blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'});const u=URL.createObjectURL(blob),a=document.createElement('a');a.href=u;a.download='common-data.json';document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),1000);showToast('common-data.json を書き出しました')}
@@ -445,6 +465,7 @@
         return;
       }
       await load();
+      publishLocalPreview();
       scheduleAdminBackup();
       render();
       if(state.recovered)setTimeout(()=>showToast('端末バックアップから管理者データを自動復旧しました'),250);
